@@ -1,18 +1,35 @@
 #include "Nimata.hpp"
 #include <iostream>
+#include <random>
+#include <chrono>
+#include <sstream>
+
+std::random_device device;
+std::mt19937 generator(device());
+std::uniform_int_distribution<> uniform_distribution(1, 10);
 
 void some_work()
 {
-    std::cout << "some work\n";
-}
+  int sleep_for_sec = uniform_distribution(generator);
 
+  std::stringstream temp1;
+  temp1 << "sleeping for: " << sleep_for_sec << "\n";
+  std::cout << temp1.str();
+
+  std::this_thread::sleep_for(std::chrono::seconds{sleep_for_sec});
+
+  std::stringstream temp2;
+  temp2 << "done sleeping for: " << sleep_for_sec << "\n";
+  std::cout << temp2.str();
+}
 
 int main()
 {
-  Nimata::Pool<10> pool;
+  Nimata::Pool<1> pool;
 
-  pool.workers_[2].assign_work(some_work);
+  pool.do_work(some_work);
 
-  pool.wait();
+  pool.join_all();
+  
   std::cout << "done\n";
 }
