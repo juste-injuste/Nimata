@@ -41,11 +41,10 @@ SOFTWARE.
 #include <mutex>              // for std::mutex, std::unique_lock
 #include <condition_variable> // for std::conditional_variable
 #include <array>              // for std::array
-#include <chrono>             // for std::chrono::*
 #include <ostream>            // for std::ostream
-#include <iostream>           // for std::cout, std::cerr, std::endl
 #include <deque>
 #include <functional>
+#include <chrono>             // for std::chrono::high_resolution_clock, std::chrono::nanoseconds
 // --Nimata library---------------------------------------------------------------------------------
 namespace Nimata
 {
@@ -56,134 +55,176 @@ namespace Nimata
     const long PATCH = 000;
     constexpr long NUMBER = (MAJOR * 1000 + MINOR) * 1000 + PATCH;
   }
-// --Nimata library: frontend forward declarations--------------------------------------------------
-  inline namespace Frontend
+
+  using Work = std::function<void()>;
+
+  template<size_t N>
+  class Pool;
+
+# define NIMATA_ASYNC(period_us)
+  
+  using Period = std::chrono::nanoseconds::rep;
+
+  inline namespace Literals
   {
-    using Work = std::function<void()>;//void(*)();
-
-    template<size_t N>
-    class Pool;
-
-    // output ostream
-    std::ostream out_ostream{std::cout.rdbuf()};
-
-    // error ostream
-    std::ostream err_ostream{std::cerr.rdbuf()};
-
-    // warning ostream
-    std::ostream wrn_ostream{std::cerr.rdbuf()};
+    constexpr Period operator ""_mHz(long double frequency);
+    constexpr Period operator ""_mHz(unsigned long long frequency);
+    constexpr Period operator ""_Hz(long double frequency);
+    constexpr Period operator ""_Hz(unsigned long long frequency);
+    constexpr Period operator ""_kHz(long double frequency);
+    constexpr Period operator ""_kHz(unsigned long long frequency);
   }
 // --Nimata library: backend forward declaration----------------------------------------------------
   namespace Backend
   {
     class Worker;
+
+    template<Period P>
+    class AsyncWorker;
   }
 // --Nimata library: frontend struct and class definitions------------------------------------------
-  inline namespace Frontend
+  template<size_t N>
+  class Pool final
   {
-    template<size_t N>
-    class Pool final
-    {
-      public:
-        inline Pool() noexcept;
-        inline ~Pool() noexcept;
-        inline void do_work(Work work) noexcept;
-        inline void join_all() noexcept;
-        std::array<Backend::Worker, N> workers_;
-      private:
-        std::condition_variable conditional_;
-        std::mutex queue_mutex;
-        std::deque<Work> work_queue;
-        void error(const char* message) const noexcept;
-    };
-  }
+  static_assert(N > 0, "N in Pool<N> must be greater than 0");
+  public:
+    inline Pool() noexcept;
+    inline ~Pool() noexcept;
+    inline void do_work(Work work) noexcept;
+    inline void join_all() noexcept;
+    Backend::Worker workers_[N];
+  private:
+    std::condition_variable conditional_;
+    std::mutex queue_mutex;
+    std::deque<Work> work_queue;
+  };
 // --Nimata library: backend  struct and class definitions------------------------------------------
   namespace Backend
   {
     class Worker final
     {
-      public:
-        inline explicit Worker() noexcept;
-        inline ~Worker() noexcept;
-        inline void body() noexcept;
-        inline void assign_work(Work work) noexcept;
-        inline bool vitality() { return alive_; }
-        inline void kill() noexcept;
-        inline bool busy() const noexcept;
-      private:
-        std::condition_variable* notifier_;
-        std::thread thread_;
-        std::mutex mutex_;
-        bool is_busy_;
-        bool alive_;
-        Work work_;
-        void warning(const char* message) const noexcept;
+    public:
+      inline explicit Worker() noexcept;
+      inline ~Worker() noexcept;
+      inline void body() noexcept;
+      inline void assign_work(Work work) noexcept;
+      inline bool vitality() { return alive; }
+      inline void kill() noexcept;
+      inline bool busy() const noexcept;
+    private:
+      std::condition_variable* notifier;
+      std::thread thread;
+      std::mutex mtx;
+      bool working;
+      bool alive;
+      Work work;
+    };
+
+    template<Period P>
+    class AsyncWorker final
+    {
+    static_assert(P >= 0, "period must be a positive or zero number");
+    public:
+      AsyncWorker(Work work) noexcept;
+      AsyncWorker(const AsyncWorker&) noexcept {}
+      ~AsyncWorker() noexcept;
+    private:
+      std::thread async_work;
+      bool        do_work = true;
     };
   }
 // --Nimata library: frontend definitions-----------------------------------------------------------
-  inline namespace Frontend
+  template<size_t N>
+  Pool<N>::Pool() noexcept :
+    workers_()
+  {}
+
+  template<size_t N>
+  Pool<N>::~Pool() noexcept
   {
-    template<size_t N>
-    Pool<N>::Pool() noexcept :
-      workers_{Backend::Worker(conditional_)}
-    {}
+    join_all();
+  }
 
-    template<size_t N>
-    Pool<N>::~Pool() noexcept
+  template<size_t N>
+  void Pool<N>::do_work(Work work) noexcept
+  {
     {
-      join_all();
+      std::unique_lock lock(queue_mutex);
+      work_queue.push_back(work);
     }
 
-    template<size_t N>
-    void Pool<N>::do_work(Work work) noexcept
+    // for (Backend::Worker& worker : workers_)
+    // {
+    //   if (worker.busy() == false)
+    //   {
+    //     worker.assign_work(work);
+    //     return;
+    //   }
+    // }
+  }
+
+  template<size_t N>
+  void Pool<N>::join_all() noexcept
+  {
+    for (Backend::Worker& worker : workers_)
     {
+      if (worker.vitality())
       {
-        std::unique_lock lock(queue_mutex);
-        work_queue.push_back(work);
-      }
-
-      // for (Backend::Worker& worker : workers_)
-      // {
-      //   if (worker.busy() == false)
-      //   {
-      //     worker.assign_work(work);
-      //     return;
-      //   }
-      // }
-
-      // error("all workers are busy");
-    }
-
-    template<size_t N>
-    void Pool<N>::join_all() noexcept
-    {
-      for (Backend::Worker& worker : workers_)
-      {
-        if (worker.vitality())
-        {
-          worker.kill();
-        }
+        worker.kill();
       }
     }
+  }
+  
+# undef  NIMATA_ASYNC
+# define NIMATA_ASYNC_IMPL(period_us, line)                                                   \
+    Nimata::Backend::AsyncWorker<period_us> async_worker_##line = (Nimata::Work)[&]() -> void
+# define NIMATA_ASYNC_PROX(...)  NIMATA_ASYNC_IMPL(__VA_ARGS__)
+# define NIMATA_ASYNC(period_us) NIMATA_ASYNC_PROX(period_us, __LINE__)
 
-    template<size_t N>
-    void Pool<N>::error(const char* message) const noexcept
+  inline namespace Literals
+  {
+    constexpr Period operator ""_mHz(long double frequency)
     {
-      err_ostream << "error: Worker: " << message << std::endl;
+      return 1000000000000/frequency;
+    }
+
+    constexpr Period operator ""_mHz(unsigned long long frequency)
+    {
+      return 1000000000000/frequency;
+    }
+
+    constexpr Period operator ""_Hz(long double frequency)
+    {
+      return 1000000000/frequency;
+    }
+
+    constexpr Period operator ""_Hz(unsigned long long frequency)
+    {
+      return 1000000000/frequency;
+    }
+    
+    constexpr Period operator ""_kHz(long double frequency)
+    {
+      return 1000000/frequency;
+    }
+
+    constexpr Period operator ""_kHz(unsigned long long frequency)
+    {
+      return 1000000/frequency;
     }
   }
 // --Nimata library: backend definitions------------------------------------------------------------
   namespace Backend
   {
     Worker::Worker() noexcept :
-      thread_(body, this),
-      is_busy_(false),
-      alive_(true)
+      thread(body, this),
+      working(false),
+      alive(true)
     {}
 
     Worker::~Worker() noexcept
     {
-      if (vitality())
+      if (alive)
       {
         kill();
       }
@@ -192,52 +233,81 @@ namespace Nimata
     void Worker::body() noexcept
     {
     loop:
-      is_busy_ = false;
+      working = false;
 
-      std::unique_lock lock(mutex_);
-      notifier_.wait(lock, [this]{return work_ != nullptr;});
+      std::unique_lock<std::mutex> lock{mtx};
+      notifier->wait(lock, [this]{return work != nullptr;});
 
-      is_busy_ = true;
+      working = true;
 
-      if (vitality() == false)
+      if (alive == false)
         return;
 
-      work_();
+      work();
 
       goto loop;
     }
 
     void Worker::assign_work(Work work) noexcept
     {
-      work_ = work;
+      work = work;
 
-      std::unique_lock lock(mutex_);
-      notifier_.notify_one();
+      std::unique_lock<std::mutex> lock{mtx};
+      notifier->notify_one();
     }
 
     void Worker::kill() noexcept
     {
-      alive_ = false;
+      alive = false;
       
-      if (thread_.joinable())
+      if (thread.joinable())
       {
-        out_ostream << "  joining thread "<< thread_.get_id() << "...\n";
-        notifier_.notify_one();
-        thread_.join();
-        out_ostream << "  joined...\n";
+        // std::cout << "  joining thread "<< thread.get_id() << "...\n";
+        notifier->notify_one();
+        thread.join();
+        // std::cout << "  joined...\n";
       }
-      else out_ostream << " not joinable\n";
+      else {}//std::cout << " not joinable\n";
     }
 
-    
     bool Worker::busy() const noexcept
     {
-      return is_busy_;
+      return working;
     }
 
-    void Worker::warning(const char* message) const noexcept
+    template<Period P>
+    AsyncWorker<P>::AsyncWorker(Work work) noexcept :
+      async_work{[&]{
+        while (do_work)
+        {
+          static std::chrono::high_resolution_clock::time_point previous = {};
+          auto now     = std::chrono::high_resolution_clock::now();
+          auto elapsed = std::chrono::nanoseconds(now - previous).count();
+          
+          if (elapsed >= P)
+          {
+            previous = now;
+            work();
+          }
+        }
+      }}
+    {}
+
+    template<>
+    AsyncWorker<0>::AsyncWorker(Work work) noexcept :
+      async_work{[&]{
+        while (do_work)
+        {
+          work();
+        }
+      }}
+    {}
+
+    template<Period P>
+    AsyncWorker<P>::~AsyncWorker() noexcept
     {
-      wrn_ostream << "warning: Worker: " << message << std::endl;
+      do_work = false;
+      async_work.join();
     }
   }
 }

@@ -25,11 +25,25 @@ void some_work()
 
 int main()
 {
-  Nimata::Pool<1> pool;
+  using namespace Nimata;
+
+  Pool<1> pool;
 
   pool.do_work(some_work);
 
   pool.join_all();
+
+  // NIMATA_ASYNC(1_Hz)
+  // {
+  //   std::cout << "1 Hz\n";
+  // };
+
+  // NIMATA_ASYNC(3_Hz)
+  // {
+  //   std::cout << "3 Hz\n";
+  // };
+
+  std::cin.get();
   
   std::cout << "done\n";
 }
