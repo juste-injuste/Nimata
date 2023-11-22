@@ -109,16 +109,16 @@ namespace Nimata
   public:
     inline Pool(signed number_of_threads = MAX_THREADS) noexcept;
     inline ~Pool() noexcept;
-    inline void execute(Work work_to_do) noexcept;
+    inline void push(Work work) noexcept;
     inline void wait() noexcept;
     const unsigned size;
   private:
-    inline void async_assignation() noexcept;
+    std::atomic_bool alive = {true};
     Backend::Worker* workers;
     std::mutex       mutex;
-    std::queue<Work> work_queue;
-    std::atomic_bool alive = {true};
-    std::thread      assigning_thread{async_assignation, this};
+    std::queue<Work> queue;
+    inline void async_assignation() noexcept;
+    std::thread assigner{async_assignation, this};
   };
 // --Nimata library: backend  struct and class definitions--------------------------------------------------------------
   namespace Backend
@@ -129,12 +129,12 @@ namespace Nimata
       inline ~Worker() noexcept;
       inline void assign(Work& work) noexcept;
       inline bool working() const noexcept;
-      inline void body();
+      inline void loop();
     private:
       Work             work          = nullptr;
       std::atomic_bool work_is_valid = {false};
       volatile bool    alive         = true;
-      std::thread      worker_thread{body, this};
+      std::thread      worker_thread{loop, this};
     };
 
     template<Period period>
@@ -146,10 +146,10 @@ namespace Nimata
       inline ~CyclicExecuter() noexcept;
       CyclicExecuter(const CyclicExecuter&) noexcept {}
     private:
-      inline void body();
+      inline void loop();
       Work          work  = nullptr;
       volatile bool alive = true;
-      std::thread   worker_thread{body, this};
+      std::thread   worker_thread{loop, this};
     };
   }
 // --Nimata library: frontend definitions-------------------------------------------------------------------------------
@@ -165,7 +165,7 @@ namespace Nimata
 
   Pool::~Pool() noexcept
   {
-    while (work_queue.empty() == false)
+    while (queue.empty() == false)
     {
       std::this_thread::sleep_for(std::chrono::microseconds{1});
     };
@@ -179,17 +179,17 @@ namespace Nimata
     }
 
     alive = false;
-    assigning_thread.join();
+    assigner.join();
 
     delete[] workers;
   }
 
-  void Pool::execute(Work work_to_do) noexcept
+  void Pool::push(Work work) noexcept
   {
-    if (work_to_do)
+    if (work)
     {
       std::lock_guard<std::mutex> lock{mutex};
-      work_queue.push(work_to_do);
+      queue.push(std::move(work));
     }
   }
 
@@ -202,10 +202,10 @@ namespace Nimata
         if (workers[k].working() == false)
         {
           std::lock_guard<std::mutex> lock{mutex};
-          if (work_queue.empty() == false)
+          if (queue.empty() == false)
           {
-            workers[k].assign(work_queue.front());
-            work_queue.pop();
+            workers[k].assign(queue.front());
+            queue.pop();
             NIMATA_LOG("assigned to worker thread #%02u", k);
           }
         }
@@ -215,7 +215,7 @@ namespace Nimata
 
   void Pool::wait() noexcept
   {
-    while (work_queue.empty() == false)
+    while (queue.empty() == false)
     {
       std::this_thread::sleep_for(std::chrono::microseconds{1});
     };
@@ -278,18 +278,7 @@ namespace Nimata
       worker_thread.join();
     }
 
-    void Worker::assign(Work& work_to_do) noexcept
-    {
-      work          = std::move(work_to_do);
-      work_is_valid = true;
-    }
-
-    bool Worker::working() const noexcept
-    {
-      return work_is_valid;// || work;
-    }
-
-    void Worker::body()
+    void Worker::loop()
     {
       while (alive)
       {
@@ -300,6 +289,17 @@ namespace Nimata
           work_is_valid = false;
         }
       }
+    }
+
+    void Worker::assign(Work& work) noexcept
+    {
+      this->work    = std::move(work);
+      work_is_valid = true;
+    }
+
+    bool Worker::working() const noexcept
+    {
+      return work_is_valid;
     }
 
     template<Period period>
@@ -318,7 +318,7 @@ namespace Nimata
     }
 
     template<Period period>
-    void CyclicExecuter<period>::body()
+    void CyclicExecuter<period>::loop()
     {
       if (work)
       {
@@ -340,7 +340,7 @@ namespace Nimata
     }
 
     template<>
-    void CyclicExecuter<0>::body()
+    void CyclicExecuter<0>::loop()
     {
       if (work)
       {

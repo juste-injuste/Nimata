@@ -22,7 +22,7 @@ void threadpool_demo()
   auto total_start = steady_clock::now();
   for (unsigned k = 10000; k; --k)
   {
-    pool.execute(some_work);
+    pool.push(some_work);
   }
   pool.wait();
   auto total_end     = steady_clock::now();
