@@ -89,7 +89,7 @@ namespace Nimata
     class Worker;
 
     template<Period period>
-    class CyclicWorker;
+    class CyclicExecuter;
 
 # if defined(NIMATA_LOGGING)
 #   define NIMATA_LOG(...)                          \
@@ -138,13 +138,13 @@ namespace Nimata
     };
 
     template<Period period>
-    class CyclicWorker final
+    class CyclicExecuter final
     {
     static_assert(period >= 0, "period must be greater than 0");
     public:
-      inline CyclicWorker(Work work_to_do) noexcept;
-      inline CyclicWorker(const CyclicWorker&) noexcept {}
-      inline ~CyclicWorker() noexcept;
+      inline CyclicExecuter(Work work_to_do) noexcept;
+      inline ~CyclicExecuter() noexcept;
+      CyclicExecuter(const CyclicExecuter&) noexcept {}
     private:
       inline void body();
       Work          work  = nullptr;
@@ -233,7 +233,7 @@ namespace Nimata
   
 # undef  NIMATA_CYCLIC
 # define NIMATA_CYCLIC_IMPL(period_us, line)                                          \
-    Nimata::Backend::CyclicWorker<period_us> cyclic_worker_##line = (Nimata::Work)[&]
+    Nimata::Backend::CyclicExecuter<period_us> cyclic_worker_##line = (Nimata::Work)[&]
 # define NIMATA_CYCLIC_PROX(...)  NIMATA_CYCLIC_IMPL(__VA_ARGS__)
 # define NIMATA_CYCLIC(period_us) NIMATA_CYCLIC_PROX(period_us, __LINE__)
 
@@ -303,21 +303,22 @@ namespace Nimata
     }
 
     template<Period period>
-    CyclicWorker<period>::CyclicWorker(Work work_to_do) noexcept :
+    CyclicExecuter<period>::CyclicExecuter(Work work_to_do) noexcept :
       work{work_to_do}
     {
       NIMATA_LOG("thread spawned");
     }
 
     template<Period period>
-    CyclicWorker<period>::~CyclicWorker() noexcept
+    CyclicExecuter<period>::~CyclicExecuter() noexcept
     {
       alive = false;
       worker_thread.join();
+      NIMATA_LOG("thread joined");
     }
 
     template<Period period>
-    void CyclicWorker<period>::body()
+    void CyclicExecuter<period>::body()
     {
       if (work)
       {
@@ -339,7 +340,7 @@ namespace Nimata
     }
 
     template<>
-    void CyclicWorker<0>::body()
+    void CyclicExecuter<0>::body()
     {
       if (work)
       {

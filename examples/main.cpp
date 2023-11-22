@@ -64,10 +64,10 @@ void cyclic_demo()
 int main()
 { 
 
-loop:
-  threadpool_demo();
+  while (true)
+  {
+    threadpool_demo();
 
-  cyclic_demo();
-
-  goto loop;
+    cyclic_demo();
+  }
 }
