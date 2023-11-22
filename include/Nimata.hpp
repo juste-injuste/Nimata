@@ -39,7 +39,7 @@ SOFTWARE.
 #include <thread>     // for std::thread
 #include <mutex>      // for std::mutex, std::lock_guard
 #include <atomic>     // for std::atomic_bool
-#include <queue>      // for std::queue
+// #include <queue>      // for std::queue
 #include <functional> // for std::function
 #include <chrono>     // for std::chrono::high_resolution_clock, std::chrono::nanoseconds
 #if defined(NIMATA_LOGGING)
@@ -60,6 +60,9 @@ namespace Nimata
   }
 
   const unsigned MAX_THREADS = std::thread::hardware_concurrency();
+
+  template<typename T>
+  class Queue;
 
   using Work = std::function<void()>;
 
@@ -109,6 +112,77 @@ namespace Nimata
 # endif
   }
 // --Nimata library: frontend struct and class definitions--------------------------------------------------------------
+  template<typename T>
+  class Queue final
+  {
+  private:
+    std::mutex mtx;
+    struct Node
+    {
+      Node(T data) noexcept : data{data} {}
+      T     data;
+      Node* next = nullptr;
+    }* head = nullptr;
+
+    void pop() noexcept
+    {
+      mtx.lock();
+      Node* temp = head;
+      head = head->next;
+      mtx.unlock();
+      delete temp;
+    }
+  public:
+    void add(const T& data) noexcept
+    {
+      Node* node = new Node{data};
+
+      mtx.lock();
+      if (head)
+      {
+        Node* tail = head;
+        while (tail->next)
+        {
+          tail = tail->next;
+        }
+        tail->next = node;
+      }
+      else head = node;
+      mtx.unlock();
+    }
+
+    T get() noexcept
+    {
+      T data {};
+
+      
+      mtx.lock();
+      if (head)
+      {
+        data = head->data;
+        Node* temp = head;
+        head = head->next;
+        delete temp;
+      }
+      mtx.unlock();
+
+      return data;
+    }
+
+    operator bool() const noexcept
+    {
+      return head != nullptr;
+    }
+    
+    ~Queue()
+    {
+      while (head)
+      {
+        pop();
+      }
+    }
+  };
+
   class Pool final
   {
   public:
@@ -120,8 +194,9 @@ namespace Nimata
   private:
     std::atomic_bool active = {true};
     Backend::Worker* workers;
-    std::mutex       mtx;
-    std::queue<Work> queue;
+    //std::mutex       mtx;
+    //std::queue<Work> queue;
+    Queue<Work>      queue;
     inline void async_assign() noexcept;
     std::thread assignation_thread{async_assign, this};
   };
@@ -184,14 +259,16 @@ namespace Nimata
   {
     if (work)
     {
-      std::lock_guard<std::mutex> lock{mtx};
-      queue.push(std::move(work));
+      //std::lock_guard<std::mutex> lock{mtx};
+      // queue.push(std::move(work));
+      queue.add(work);
     }
   }
 
   void Pool::wait() noexcept
   {
-    while (queue.empty() == false)
+    // while (not queue.empty())
+    while (queue)
     {
       std::this_thread::sleep_for(std::chrono::microseconds{1});
     };
@@ -215,11 +292,13 @@ namespace Nimata
       {
         if (not workers[k].busy())
         {
-          std::lock_guard<std::mutex> lock{mtx};
-          if (not queue.empty())
+          //std::lock_guard<std::mutex> lock{mtx};
+          //if (not queue.empty())
+          if (queue)
           {
-            workers[k].task(std::move(queue.front()));
-            queue.pop();
+            // workers[k].task(std::move(queue.front()));
+            // queue.pop();
+            workers[k].task(queue.get());
             NIMATA_LOG("assigned to worker thread #%02u", k);
           }
         }

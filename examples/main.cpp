@@ -2,7 +2,7 @@
 #include <iostream>
 #include <atomic>
 
-#define NIMATA_LOGGING
+// #define NIMATA_LOGGING
 #include "../include/Nimata.hpp"
 
 static std::atomic_uint work_count;
@@ -62,12 +62,27 @@ void cyclic_demo()
 }
 
 int main()
-{ 
-
+{
   while (true)
   {
     threadpool_demo();
 
     // cyclic_demo();
   }
+
+  // using namespace Nimata;
+
+  // Queue<Work> list;
+
+  // list.add(some_work);
+  // list.add(some_work);
+  // list.add(some_work);
+  // list.add(some_work);
+  // list.add(some_work);
+  
+  // while (list)
+  // {
+  //   list.get()();
+  //   std::cout << work_count << ' ';
+  // }
 }
