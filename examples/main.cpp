@@ -1,49 +1,73 @@
-#include "Nimata.hpp"
-#include <iostream>
-#include <random>
 #include <chrono>
-#include <sstream>
+#include <iostream>
+#include <atomic>
 
-std::random_device device;
-std::mt19937 generator(device());
-std::uniform_int_distribution<> uniform_distribution(1, 10);
+// #define NIMATA_LOGGING
+#include "../include/Nimata.hpp"
 
+static std::atomic_uint work_count;
 void some_work()
 {
-  int sleep_for_sec = uniform_distribution(generator);
+  // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  ++work_count;
+}
 
-  std::stringstream temp1;
-  temp1 << "sleeping for: " << sleep_for_sec << "\n";
-  std::cout << temp1.str();
+void threadpool_demo()
+{
+  using namespace std::chrono;
+  Nimata::Pool<8> pool;
 
-  std::this_thread::sleep_for(std::chrono::seconds{sleep_for_sec});
+  work_count = 0;
+  std::cout << "\033[H\033[J";
+  auto total_start = steady_clock::now();
+  for (unsigned k = 10000; k; --k)
+  {
+    pool.execute(some_work);
+  }
+  pool.wait();
+  auto total_end     = steady_clock::now();
+  auto total_elapsed = duration_cast<milliseconds>(total_end - total_start);
+  std::cout << "total elapsed time: " << total_elapsed.count() << " ms\n";
+  std::cout << "completed work: " << work_count << '\n';
+  std::cout << "press enter to continue...\n";
+  std::cin.get();
+}
 
-  std::stringstream temp2;
-  temp2 << "done sleeping for: " << sleep_for_sec << "\n";
-  std::cout << temp2.str();
+void cyclic_demo()
+{
+  using namespace Nimata::Literals;
+
+  NIMATA_CYCLIC(1_Hz) // clear screen every second
+  {
+    static unsigned frame = 0;
+    std::cout << "\033[H\033[J";
+    std::cout << "press enter to continue...\n";
+    std::cout << "frame: " << ++frame << "\n";
+    std::cout << "0%                        100%\n";
+  };
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+  NIMATA_CYCLIC(5_Hz)
+  {
+    std::cout << '='; // add 5 '=' to progress bar every second
+  };
+
+  NIMATA_CYCLIC(25_Hz)
+  {
+    std::cout << '-'; // add 25 '-' to progress bar every second
+  };
+  
+  std::cin.get();
 }
 
 int main()
-{
-  using namespace Nimata;
+{ 
 
-  Pool<1> pool;
+loop:
+  threadpool_demo();
 
-  pool.do_work(some_work);
+  cyclic_demo();
 
-  pool.join_all();
-
-  // NIMATA_ASYNC(1_Hz)
-  // {
-  //   std::cout << "1 Hz\n";
-  // };
-
-  // NIMATA_ASYNC(3_Hz)
-  // {
-  //   std::cout << "3 Hz\n";
-  // };
-
-  std::cin.get();
-  
-  std::cout << "done\n";
+  goto loop;
 }
