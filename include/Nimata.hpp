@@ -39,7 +39,7 @@ SOFTWARE.
 #include <thread>     // for std::thread
 #include <mutex>      // for std::mutex, std::lock_guard
 #include <atomic>     // for std::atomic_bool
-#include <deque>      // for std::deque
+#include <queue>      // for std::queue
 #include <functional> // for std::function
 #include <chrono>     // for std::chrono::high_resolution_clock, std::chrono::nanoseconds
 #if defined(NIMATA_LOGGING)
@@ -116,7 +116,7 @@ namespace Nimata
     inline void async_assignation() noexcept;
     Backend::Worker* workers;
     std::mutex       mutex;
-    std::deque<Work> work_queue;
+    std::queue<Work> work_queue;
     std::atomic_bool alive = {true};
     std::thread      assigning_thread{async_assignation, this};
   };
@@ -189,7 +189,7 @@ namespace Nimata
     if (work_to_do)
     {
       std::lock_guard<std::mutex> lock{mutex};
-      work_queue.push_back(work_to_do);
+      work_queue.push(work_to_do);
     }
   }
 
@@ -205,7 +205,7 @@ namespace Nimata
           if (work_queue.empty() == false)
           {
             workers[k].assign(work_queue.front());
-            work_queue.pop_front();
+            work_queue.pop();
             NIMATA_LOG("assigned to worker thread #%02u", k);
           }
         }
