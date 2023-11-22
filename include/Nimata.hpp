@@ -1,10 +1,10 @@
-/*---author-----------------------------------------------------------------------------------------
+/*---author-------------------------------------------------------------------------------------------------------------
 
 Justin Asselin (juste-injuste)
 justin.asselin@usherbrooke.ca
 https://github.com/juste-injuste/Nimata
 
------licence----------------------------------------------------------------------------------------
+-----licence------------------------------------------------------------------------------------------------------------
 
 MIT License
 
@@ -28,14 +28,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
------versions---------------------------------------------------------------------------------------
+-----versions-----------------------------------------------------------------------------------------------------------
 
------description------------------------------------------------------------------------------------
+-----description--------------------------------------------------------------------------------------------------------
 
------inclusion guard------------------------------------------------------------------------------*/
+-----inclusion guard--------------------------------------------------------------------------------------------------*/
 #ifndef NIMATA_HPP
 #define NIMATA_HPP
-// --necessary standard libraries-------------------------------------------------------------------
+// --necessary standard libraries---------------------------------------------------------------------------------------
 #include <thread>     // for std::thread
 #include <mutex>      // for std::mutex, std::lock_guard
 #include <atomic>     // for std::atomic_bool
@@ -48,7 +48,7 @@ SOFTWARE.
 #include <ostream>    // for std::ostream
 #include <iostream>   // for std::clog
 #include <sstream>
-// --Nimata library---------------------------------------------------------------------------------
+// --Nimata library-----------------------------------------------------------------------------------------------------
 namespace Nimata
 {
   namespace Version
@@ -59,9 +59,10 @@ namespace Nimata
     constexpr long NUMBER = (MAJOR * 1000 + MINOR) * 1000 + PATCH;
   }
 
+  const unsigned MAX_THREADS = std::thread::hardware_concurrency();
+
   using Work = std::function<void()>;
 
-  template<unsigned N>
   class Pool;
 
 # define NIMATA_CYCLIC(period_us)
@@ -82,7 +83,7 @@ namespace Nimata
   {
     std::ostream log{std::clog.rdbuf()}; // logging ostream
   }
-// --Nimata library: backend forward declaration----------------------------------------------------
+// --Nimata library: backend forward declaration------------------------------------------------------------------------
   namespace Backend
   {
     class Worker;
@@ -99,28 +100,27 @@ namespace Nimata
         Nimata::Global::log << buffer << std::endl; \
       }(__func__)
 # else
-#   define NIMATA_LOG(...)
+#   define NIMATA_LOG(...) ((void)0)
 # endif
   }
-// --Nimata library: frontend struct and class definitions------------------------------------------
-  template<unsigned N>
+// --Nimata library: frontend struct and class definitions--------------------------------------------------------------
   class Pool final
   {
   public:
-    inline Pool() noexcept;
+    inline Pool(signed number_of_threads = MAX_THREADS) noexcept;
     inline ~Pool() noexcept;
     inline void execute(Work work_to_do) noexcept;
     inline void wait() noexcept;
-    const unsigned size = N;
+    const unsigned size;
   private:
     inline void async_assignation() noexcept;
-    Backend::Worker  workers[N];
+    Backend::Worker* workers;
     std::mutex       mutex;
     std::deque<Work> work_queue;
     std::atomic_bool alive = {true};
     std::thread      assigning_thread{async_assignation, this};
   };
-// --Nimata library: backend  struct and class definitions------------------------------------------
+// --Nimata library: backend  struct and class definitions--------------------------------------------------------------
   namespace Backend
   {
     class Worker final
@@ -152,22 +152,25 @@ namespace Nimata
       std::thread   worker_thread{body, this};
     };
   }
-// --Nimata library: frontend definitions-----------------------------------------------------------
-  template<unsigned N>
-  Pool<N>::Pool() noexcept
+// --Nimata library: frontend definitions-------------------------------------------------------------------------------
+  Pool::Pool(signed N) noexcept :
+    size{(
+      (N += bool(N <= 0) * MAX_THREADS),
+      (N < 1 ? NIMATA_LOG("%d thread%s is not possible, 1 used instead", N, N == -1 ? "" : "s"), 1u : N)
+    )},
+    workers{new Backend::Worker[size]}
   {
-    NIMATA_LOG("%u threads aquired", N);
+    NIMATA_LOG("%u thread%s aquired", size, size == 1 ? "" : "s");
   }
 
-  template<unsigned N>
-  Pool<N>::~Pool() noexcept
+  Pool::~Pool() noexcept
   {
     while (work_queue.empty() == false)
     {
       std::this_thread::sleep_for(std::chrono::microseconds{1});
     };
 
-    for (unsigned k = 0; k < N; ++k)
+    for (unsigned k = 0; k < size; ++k)
     {
       while (workers[k].working())
       {
@@ -177,10 +180,11 @@ namespace Nimata
 
     alive = false;
     assigning_thread.join();
+
+    delete[] workers;
   }
 
-  template<unsigned N>
-  void Pool<N>::execute(Work work_to_do) noexcept
+  void Pool::execute(Work work_to_do) noexcept
   {
     if (work_to_do)
     {
@@ -189,12 +193,11 @@ namespace Nimata
     }
   }
 
-  template<unsigned N>
-  void Pool<N>::async_assignation() noexcept
+  void Pool::async_assignation() noexcept
   {
     while (alive)
     {
-      for (unsigned k = 0; k < N; ++k)
+      for (unsigned k = 0; k < size; ++k)
       {
         if (workers[k].working() == false)
         {
@@ -210,15 +213,14 @@ namespace Nimata
     }
   }
 
-  template<unsigned N>
-  void Pool<N>::wait() noexcept
+  void Pool::wait() noexcept
   {
     while (work_queue.empty() == false)
     {
       std::this_thread::sleep_for(std::chrono::microseconds{1});
     };
 
-    for (unsigned k = 0; k < N; ++k)
+    for (unsigned k = 0; k < size; ++k)
     {
       while (workers[k].working() == true)
       {
@@ -267,7 +269,7 @@ namespace Nimata
       return 1000000/frequency;
     }
   }
-// --Nimata library: backend definitions------------------------------------------------------------
+// --Nimata library: backend definitions--------------------------------------------------------------------------------
   namespace Backend
   {
     Worker::~Worker() noexcept

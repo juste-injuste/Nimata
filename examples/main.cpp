@@ -15,7 +15,7 @@ void some_work()
 void threadpool_demo()
 {
   using namespace std::chrono;
-  Nimata::Pool<8> pool;
+  Nimata::Pool pool{-2};
 
   work_count = 0;
   std::cout << "\033[H\033[J";
