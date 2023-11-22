@@ -8,19 +8,19 @@
 static std::atomic_uint work_count;
 void some_work()
 {
-  // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   ++work_count;
 }
 
 void threadpool_demo()
 {
   using namespace std::chrono;
-  Nimata::Pool pool{-2};
+  Nimata::Pool pool;
 
   work_count = 0;
   std::cout << "\033[H\033[J";
   auto total_start = steady_clock::now();
-  for (unsigned k = 10000; k; --k)
+  for (unsigned k = 10; k; --k)
   {
     pool.push(some_work);
   }
