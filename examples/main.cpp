@@ -69,7 +69,9 @@ int main()
 
     // cyclic_demo();
   }
-
+  // Nimata::Work t;
+  // Nimata::Work work;
+  // work = std::move(t);
   // using namespace Nimata;
 
   // Queue<Work> list;

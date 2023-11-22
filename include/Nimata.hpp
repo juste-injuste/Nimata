@@ -39,7 +39,7 @@ SOFTWARE.
 #include <thread>     // for std::thread
 #include <mutex>      // for std::mutex, std::lock_guard
 #include <atomic>     // for std::atomic_bool
-// #include <queue>      // for std::queue
+#include <utility>    // for std::move
 #include <functional> // for std::function
 #include <chrono>     // for std::chrono::high_resolution_clock, std::chrono::nanoseconds
 #if defined(NIMATA_LOGGING)
@@ -112,73 +112,59 @@ namespace Nimata
 # endif
   }
 // --Nimata library: frontend struct and class definitions--------------------------------------------------------------
-  template<typename T>
+  template<typename Type>
   class Queue final
   {
   private:
-    std::mutex mtx;
     struct Node
     {
-      Node(T data) noexcept : data{data} {}
-      T     data;
-      Node* next = nullptr;
-    }* head = nullptr;
-
-    void pop() noexcept
-    {
-      mtx.lock();
-      Node* temp = head;
-      head = head->next;
-      mtx.unlock();
-      delete temp;
-    }
+      Type  data;
+      Node* next;
+    };
+    
+    mutable std::mutex mtx;
+    Node* head = nullptr;
+    Node* tail = nullptr;
   public:
-    void add(const T& data) noexcept
+    void add(const Type& data) noexcept
     {
-      Node* node = new Node{data};
-
-      mtx.lock();
-      if (head)
-      {
-        Node* tail = head;
-        while (tail->next)
-        {
-          tail = tail->next;
-        }
-        tail->next = node;
-      }
-      else head = node;
-      mtx.unlock();
+      auto lock = std::lock_guard(mtx);
+      tail = (tail ? tail->next : head) = new Node{data, nullptr};
     }
 
-    T get() noexcept
+    Type get() noexcept
     {
-      T data {};
+      Type  data = {};
+      Node* temp = nullptr;
 
-      
-      mtx.lock();
-      if (head)
       {
-        data = head->data;
-        Node* temp = head;
-        head = head->next;
-        delete temp;
+        auto lock = std::lock_guard(mtx);
+        if (head)
+        {
+          data = std::move(head->data);
+          temp = head;
+          head = head->next;
+        }
       }
-      mtx.unlock();
 
+      delete temp;
       return data;
     }
 
     operator bool() const noexcept
-    {
+    { 
+      auto lock = std::lock_guard(mtx);
       return head != nullptr;
     }
     
     ~Queue()
     {
+      Node* temp;
       while (head)
       {
-        pop();
+        temp = head;
+        head = head->next;
+        delete temp;
       }
     }
   };
