@@ -148,7 +148,7 @@ namespace Nimata
       }
 
       delete temp;
-      return std::move(data);
+      return data;
     }
 
     void pop() noexcept
