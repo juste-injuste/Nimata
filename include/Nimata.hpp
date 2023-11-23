@@ -42,7 +42,7 @@ SOFTWARE.
 #include <queue>      // for std::queue
 #include <functional> // for std::function
 #include <chrono>     // for std::chrono::high_resolution_clock, std::chrono::nanoseconds
-#if defined(NIMATA_LOGGING)
+#ifdef NIMATA_LOGGING
 # include <cstdio>    // for std::sprintf
 #endif
 #include <ostream>    // for std::ostream
@@ -96,8 +96,9 @@ namespace Nimata
     {
       static std::mutex mtx;
       std::lock_guard<std::mutex> lock{mtx};
-      Nimata::Global::log << caller << ": " << message << std::endl;
+      Global::log << caller << ": " << message << std::endl;
     }
+    
 #   define NIMATA_LOG(...)                    \
       [&](const char* caller){                \
         static char buffer[255];              \
