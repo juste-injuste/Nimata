@@ -69,22 +69,4 @@ int main()
 
     // cyclic_demo();
   }
-  // Nimata::Work t;
-  // Nimata::Work work;
-  // work = std::move(t);
-  // using namespace Nimata;
-
-  // Queue<Work> list;
-
-  // list.add(some_work);
-  // list.add(some_work);
-  // list.add(some_work);
-  // list.add(some_work);
-  // list.add(some_work);
-  
-  // while (list)
-  // {
-  //   list.get()();
-  //   std::cout << work_count << ' ';
-  // }
 }

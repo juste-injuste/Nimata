@@ -38,16 +38,15 @@ SOFTWARE.
 // --necessary standard libraries---------------------------------------------------------------------------------------
 #include <thread>     // for std::thread
 #include <mutex>      // for std::mutex, std::lock_guard
-#include <atomic>     // for std::atomic_bool
-#include <utility>    // for std::move
+#include <atomic>     // for std::atomic
 #include <functional> // for std::function
-#include <chrono>     // for std::chrono::high_resolution_clock, std::chrono::nanoseconds
+#include <chrono>     // for std::chrono::steady_clock, std::chrono::nanoseconds
+#include <utility>    // for std::move
 #if defined(NIMATA_LOGGING)
 # include <cstdio>    // for std::sprintf
 #endif
 #include <ostream>    // for std::ostream
 #include <iostream>   // for std::clog
-#include <sstream>
 // --Nimata library-----------------------------------------------------------------------------------------------------
 namespace Nimata
 {
@@ -68,10 +67,10 @@ namespace Nimata
 
   class Pool;
 
-  using Period = std::chrono::nanoseconds::rep;
 
 # define NIMATA_CYCLIC(period_us)
 
+  using Period = std::chrono::nanoseconds::rep;
   inline namespace Literals
   {
     constexpr Period operator ""_mHz(long double frequency);
@@ -102,7 +101,8 @@ namespace Nimata
       Nimata::Global::log << caller << ": " << message << std::endl;
     }
 #   define NIMATA_LOG(...)                    \
-      [&](const char* caller){                \
+      [&](const char* caller) -> void         \
+      {                                       \
         static char buffer[255];              \
         sprintf(buffer, __VA_ARGS__);         \
         Nimata::Backend::log(caller, buffer); \
@@ -148,7 +148,23 @@ namespace Nimata
       }
 
       delete temp;
-      return data;
+      return std::move(data);
+    }
+
+    void pop() noexcept
+    {
+      Node* temp = nullptr;
+
+      {
+        auto lock = std::lock_guard(mtx);
+        if (head)
+        {
+          temp = head;
+          head = head->next;
+        }
+      }
+
+      delete temp;
     }
 
     operator bool() const noexcept
@@ -180,8 +196,6 @@ namespace Nimata
   private:
     std::atomic_bool active = {true};
     Backend::Worker* workers;
-    //std::mutex       mtx;
-    //std::queue<Work> queue;
     Queue<Work>      queue;
     inline void async_assign() noexcept;
     std::thread assignation_thread{async_assign, this};
@@ -192,15 +206,36 @@ namespace Nimata
     class Worker final
     {
     public:
-      inline ~Worker() noexcept;
-      inline void task(Work&& work) noexcept;
-      inline bool busy() const noexcept;
-      inline void loop();
+      ~Worker() noexcept
+      {
+        alive = false;
+        worker_thread.join();
+      }
+      
+      void task(Work work) noexcept
+      {
+        this->work     = std::move(work);
+        work_available = true;
+      }
+
+      bool busy() const noexcept
+      {
+        return work_available;
+      }
     private:
       std::atomic_bool work_available = {false};
       Work             work  = nullptr;
       volatile bool    alive = true;
-      std::thread      worker_thread{loop, this};
+      std::thread worker_thread{[this]{
+        while (alive)
+        {
+          if (work_available)
+          {
+            work();
+            work_available = false;
+          }
+        }
+      }};
     };
 
     template<Period period>
@@ -212,7 +247,7 @@ namespace Nimata
       inline ~CyclicExecuter() noexcept;
       CyclicExecuter(const CyclicExecuter&) noexcept {}
     private:
-      inline void loop();
+      inline void   loop();
       Work          work;
       volatile bool alive = true;
       std::thread   worker_thread{loop, this};
@@ -245,29 +280,20 @@ namespace Nimata
   {
     if (work)
     {
-      //std::lock_guard<std::mutex> lock{mtx};
-      // queue.push(std::move(work));
       queue.add(work);
     }
   }
 
   void Pool::wait() noexcept
   {
-    // while (not queue.empty())
-    while (queue)
-    {
-      std::this_thread::sleep_for(std::chrono::microseconds{1});
-    };
+    while (queue);
 
     for (unsigned k = 0; k < size; ++k)
     {
-      while (workers[k].busy())
-      {
-        std::this_thread::sleep_for(std::chrono::microseconds{1});
-      }
+      while (workers[k].busy());
     }
 
-    NIMATA_LOG("all threads finished their work");
+    NIMATA_LOG("all workers finished their work");
   }
 
   void Pool::async_assign() noexcept
@@ -276,17 +302,10 @@ namespace Nimata
     {
       for (unsigned k = 0; k < size; ++k)
       {
-        if (not workers[k].busy())
+        if (queue and not workers[k].busy())
         {
-          //std::lock_guard<std::mutex> lock{mtx};
-          //if (not queue.empty())
-          if (queue)
-          {
-            // workers[k].task(std::move(queue.front()));
-            // queue.pop();
-            workers[k].task(queue.get());
-            NIMATA_LOG("assigned to worker thread #%02u", k);
-          }
+          workers[k].task(queue.get());
+          NIMATA_LOG("assigned to worker #%02u", k);
         }
       }
     }
@@ -333,38 +352,9 @@ namespace Nimata
 // --Nimata library: backend definitions--------------------------------------------------------------------------------
   namespace Backend
   {
-    Worker::~Worker() noexcept
-    {
-      alive = false;
-      worker_thread.join();
-    }
-
-    void Worker::task(Work&& work) noexcept
-    {
-      this->work     = std::move(work);
-      work_available = true;
-    }
-
-    bool Worker::busy() const noexcept
-    {
-      return work_available;
-    }
-
-    void Worker::loop()
-    {
-      while (alive)
-      {
-        if (work_available)
-        {
-          work();
-          work_available = false;
-        }
-      }
-    }
-
     template<Period period>
     CyclicExecuter<period>::CyclicExecuter(Work work) noexcept :
-      work{work ? NIMATA_LOG("work is invalid"), nullptr : work}
+      work{work ? NIMATA_LOG("work is null"), nullptr : work}
     {
       NIMATA_LOG("thread spawned");
     }
