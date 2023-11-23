@@ -2,7 +2,7 @@
 #include <iostream>
 #include <atomic>
 
-#define NIMATA_LOGGING
+// #define NIMATA_LOGGING
 #include "../include/Nimata.hpp"
 
 static std::atomic_uint work_count;
