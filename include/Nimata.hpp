@@ -109,7 +109,7 @@ namespace Nimata
         Nimata::Backend::log(caller, buffer); \
       }(__func__)
 # else
-#   define NIMATA_LOG(...) ((void)0)
+#   define NIMATA_LOG(...) void()
 # endif
   }
 // --Nimata library: frontend struct and class definitions--------------------------------------------------------------

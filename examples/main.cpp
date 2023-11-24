@@ -48,7 +48,7 @@ void cyclic_demo()
     std::cout << "frame: " << ++frame << "\n";
     std::cout << "0%                        100%\n";
   };
-
+  
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
   NIMATA_CYCLIC(5_Hz)
