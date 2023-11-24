@@ -14,6 +14,7 @@ void some_work()
 
 void threadpool_demo()
 {
+  static unsigned iterations = 0;
   using namespace std::chrono;
   Nimata::Pool pool;
 
@@ -27,8 +28,10 @@ void threadpool_demo()
   pool.wait();
   auto total_end     = steady_clock::now();
   auto total_elapsed = duration_cast<milliseconds>(total_end - total_start);
+  iterations++;
+  std::cout << "iteration:          " << iterations << '\n';
   std::cout << "total elapsed time: " << total_elapsed.count() << " ms\n";
-  std::cout << "completed work: " << work_count << '\n';
+  std::cout << "completed work:     " << work_count << '\n';
   std::cout << "press enter to continue...\n";
   std::cin.get();
 }

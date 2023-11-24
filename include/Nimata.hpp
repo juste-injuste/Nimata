@@ -295,6 +295,7 @@ namespace Nimata
           work();
           work_available = false;
         }
+        else std::this_thread::yield();
       }
     }
 
