@@ -214,6 +214,16 @@ namespace Nimata
   template<typename Type>
   Type Queue<Type>::grab() noexcept
   {
+    Type data = head ? std::move(head->data) : Type{};
+
+    drop();
+
+    return data;
+  }
+
+  template<typename Type>
+  void Queue<Type>::drop() noexcept
+  {
     Node* temp = nullptr;
 
     {
@@ -227,31 +237,6 @@ namespace Nimata
 
     {
       std::lock_guard<std::mutex> tail_lock{tail_mtx};
-      if (tail == temp)
-      {
-        tail = nullptr;
-      }
-    }
-    
-    Type data = temp ? std::move(temp->data) : Type{};
-
-    delete temp;
-    return data;
-  }
-
-  template<typename Type>
-  void Queue<Type>::drop() noexcept
-  {
-    Node* temp = nullptr;
-
-    {
-      std::lock_guard<std::mutex> lock{head_mtx};
-      if (head)
-      {
-        temp = head;
-        head = head->next;
-      }
-      
       if (tail == temp)
       {
         tail = nullptr;
