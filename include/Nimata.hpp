@@ -119,12 +119,68 @@ namespace Nimata
   private:
     struct Node { Type data; Node* next; };
   public:
-    inline void     push(const Type& data) noexcept;
-    inline Type     grab() noexcept;
-    inline void     drop() noexcept;
-    const Type&     read() const noexcept {return head ? head->data : Type{};}
-    inline operator bool() const noexcept;
-    inline ~Queue();
+    void push(const Type& data) noexcept
+    {
+      Node* node = new Node{data, nullptr};
+
+      std::lock_guard<std::mutex> head_lock{head_mtx}, tail_lock{tail_mtx};
+      tail = (tail ? tail->next : head) = node;
+    }
+
+    Type grab() noexcept
+    {
+      Type data = head ? std::move(head->data) : Type{};
+
+      drop();
+
+      return data;
+    }
+
+    void drop() noexcept
+    {
+      Node* temp = nullptr;
+
+      {
+        std::lock_guard<std::mutex> head_lock{head_mtx};
+        if (head)
+        {
+          temp = head;
+          head = head->next;
+        }
+      }
+
+      {
+        std::lock_guard<std::mutex> tail_lock{tail_mtx};
+        if (tail == temp)
+        {
+          tail = nullptr;
+        }
+      }
+
+      delete temp;
+    }
+
+    auto view() const noexcept -> const Type&
+    {
+      return head ? head->data : Type{};
+    }
+
+    operator bool() const noexcept
+    { 
+      std::lock_guard<std::mutex> head_lock{head_mtx};
+      return head != nullptr;
+    }
+
+    ~Queue()
+    {
+      Node* temp;
+      while (head)
+      {
+        temp = head;
+        head = head->next;
+        delete temp;
+      }
+    }
   private:
     mutable std::mutex head_mtx;
     mutable std::mutex tail_mtx;
@@ -135,10 +191,10 @@ namespace Nimata
   class Pool final
   {
   public:
-    inline Pool(signed number_of_threads = MAX_THREADS - 2) noexcept;
-    inline ~Pool() noexcept;
-    inline void push(Work work) noexcept;
-    inline void wait() noexcept;
+    inline          Pool(signed number_of_threads = MAX_THREADS - 2) noexcept;
+    inline         ~Pool() noexcept;
+    inline void     push(Work work) noexcept;
+    inline void     wait() noexcept;
     inline unsigned size() noexcept;
   private:
     unsigned int     worker_count;
@@ -182,6 +238,7 @@ namespace Nimata
             work();
             work_available = false;
           }
+          else std::this_thread::yield();
         }
       }};
     };
@@ -202,69 +259,6 @@ namespace Nimata
     };
   }
 // --Nimata library: frontend definitions-------------------------------------------------------------------------------
-  template<typename Type>
-  void Queue<Type>::push(const Type& data) noexcept
-  {
-    Node* node = new Node{data, nullptr};
-
-    std::lock_guard<std::mutex> head_lock{head_mtx}, tail_lock{tail_mtx};
-    tail = (tail ? tail->next : head) = node;
-  }
-
-  template<typename Type>
-  Type Queue<Type>::grab() noexcept
-  {
-    Type data = head ? std::move(head->data) : Type{};
-
-    drop();
-
-    return data;
-  }
-
-  template<typename Type>
-  void Queue<Type>::drop() noexcept
-  {
-    Node* temp = nullptr;
-
-    {
-      std::lock_guard<std::mutex> head_lock{head_mtx};
-      if (head)
-      {
-        temp = head;
-        head = head->next;
-      }
-    }
-
-    {
-      std::lock_guard<std::mutex> tail_lock{tail_mtx};
-      if (tail == temp)
-      {
-        tail = nullptr;
-      }
-    }
-
-    delete temp;
-  }
-
-  template<typename Type>
-  Queue<Type>::operator bool() const noexcept
-  { 
-    std::lock_guard<std::mutex> head_lock{head_mtx};
-    return head != nullptr;
-  }
-  
-  template<typename Type>
-  Queue<Type>::~Queue()
-  {
-    Node* temp;
-    while (head)
-    {
-      temp = head;
-      head = head->next;
-      delete temp;
-    }
-  }
-
   Pool::Pool(signed number_of_threads) noexcept
   {
     if (number_of_threads <= 0)
