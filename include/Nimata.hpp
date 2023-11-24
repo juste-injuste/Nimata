@@ -41,7 +41,7 @@ SOFTWARE.
 #include <atomic>     // for std::atomic_bool
 #include <queue>      // for std::queue
 #include <functional> // for std::function
-#include <chrono>     // for std::chrono::high_resolution_clock, std::chrono::nanoseconds
+#include <chrono>     // for std::chrono::*
 #ifdef NIMATA_LOGGING
 # include <cstdio>    // for std::sprintf
 #endif
