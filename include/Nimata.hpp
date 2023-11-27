@@ -47,6 +47,12 @@ SOFTWARE.
 #endif
 #include <ostream>    // for std::ostream
 #include <iostream>   // for std::clog
+// --
+#if __has_cpp_attribute(nodiscard)
+# define NIMATA_NODISCARD(reason) [[nodiscard(reason)]]
+#else
+# define NIMATA_NODISCARD(reason)
+#endif
 // --Nimata library-----------------------------------------------------------------------------------------------------
 namespace Nimata
 {
@@ -127,6 +133,7 @@ namespace Nimata
       tail = (tail ? tail->next : head) = node;
     }
 
+    NIMATA_NODISCARD("use drop() instead")
     Type grab() noexcept
     {
       Type data = head ? std::move(head->data) : Type{};

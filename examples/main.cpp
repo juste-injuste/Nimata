@@ -73,4 +73,6 @@ int main()
 
     // cyclic_demo();
   }
+  Nimata::Queue<int> q;
+  q.grab();
 }
