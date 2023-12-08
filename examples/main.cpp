@@ -6,9 +6,25 @@
 #include "../include/Nimata.hpp"
 
 static std::atomic_uint work_count;
-void some_work()
+int some_work()
 {
   // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  return ++work_count;
+}
+
+int more_work(int i)
+{
+  ++work_count;
+  return i;
+}
+
+void other_work()
+{
+  ++work_count;
+}
+
+void hihi_work(int)
+{
   ++work_count;
 }
 
@@ -21,9 +37,12 @@ void threadpool_demo()
   work_count = 0;
   std::cout << "\033[H\033[J";
   auto total_start = steady_clock::now();
-  for (unsigned k = 10000; k; --k)
+  for (unsigned k = 5000; k; --k)
   {
     pool.push(some_work);
+    pool.push(other_work);
+    pool.push(more_work, 1);
+    pool.push(hihi_work, 1);
   }
   pool.wait();
   auto total_end     = steady_clock::now();
