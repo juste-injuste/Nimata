@@ -319,8 +319,8 @@ namespace Nimata
     
     if (N < 1)
     {
+      NIMATA_LOG("%d threads is not possible, 1 used instead", N);
       N = 1;
-      NIMATA_LOG("%d thread%s is not possible, 1 used instead", N, N == -1 ? "" : "s");
     }
     
     return static_cast<unsigned>(N);

@@ -85,7 +85,7 @@ void cyclic_demo()
 
 int main()
 { 
-  Nimata::Pool p(-123124);
+  Nimata::Pool p(-20);
   // while (true)
   // {
   //   threadpool_demo();
