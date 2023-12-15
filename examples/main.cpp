@@ -2,7 +2,7 @@
 #include <iostream>
 #include <atomic>
 
-// #define NIMATA_LOGGING
+#define NIMATA_LOGGING
 #include "../include/Nimata.hpp"
 
 static std::atomic_uint work_count;
@@ -74,7 +74,7 @@ void cyclic_demo()
   {
     std::cout << '='; // add 5 '=' to progress bar every second
   };
-
+  
   NIMATA_CYCLIC(25_Hz)
   {
     std::cout << '-'; // add 25 '-' to progress bar every second
@@ -85,11 +85,11 @@ void cyclic_demo()
 
 int main()
 { 
+  Nimata::Pool p(-123124);
+  // while (true)
+  // {
+  //   threadpool_demo();
 
-  while (true)
-  {
-    threadpool_demo();
-
-    // cyclic_demo();
-  }
+  //   // cyclic_demo();
+  // }
 }

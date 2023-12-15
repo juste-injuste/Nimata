@@ -39,9 +39,10 @@ SOFTWARE.
 #include <thread>     // for std::thread
 #include <mutex>      // for std::mutex, std::lock_guard
 #include <atomic>     // for std::atomic_bool
-#include <queue>      // for std::queue
 #include <future>     // for std::future, std::promise
 #include <functional> // for std::function
+#include <queue>      // for std::queue
+#include <memory>     // for std::unique_ptr
 #include <chrono>     // for std::chrono::*
 #ifdef NIMATA_LOGGING
 # include <cstdio>    // for std::sprintf
@@ -60,8 +61,6 @@ namespace Nimata
   }
 
   const unsigned MAX_THREADS = std::thread::hardware_concurrency();
-
-  using Work = std::function<void()>;
 
   class Pool;
 
@@ -84,71 +83,29 @@ namespace Nimata
     std::ostream log{std::clog.rdbuf()}; // logging ostream
   }
 // --Nimata library: backend forward declaration------------------------------------------------------------------------
-  namespace Backend
+  namespace _backend
   {
-    class Worker;
-
-    template<Period period>
-    class CyclicExecuter;
-
-# if defined(NIMATA_LOGGING)
-    void log(const char* caller, const char* message)
-    {
-      static std::mutex mtx;
-      std::lock_guard<std::mutex> lock{mtx};
-      Global::log << caller << ": " << message << std::endl;
-    }
-    
-#   define NIMATA_LOG(...)                    \
-      [&](const char* caller){                \
-        static char buffer[255];              \
-        sprintf(buffer, __VA_ARGS__);         \
-        Nimata::Backend::log(caller, buffer); \
-      }(__func__)
+# if defined(__GNUC__) and (__GNUC__ >= 9)
+#   define NIMATA_COLD [[unlikely]]
+#   define NIMATA_HOT  [[likely]]
+# elif defined(__clang__) and (__clang_major__ >= 9)
+#   define NIMATA_COLD [[unlikely]]
+#   define NIMATA_HOT  [[likely]]
 # else
-#   define NIMATA_LOG(...) void(0)
+#   define NIMATA_COLD
+#   define NIMATA_HOT
 # endif
 
-    template<typename T>
-    using if_non_void = typename std::enable_if<!std::is_same<T, void>::value, T>::type;
-
-    template<typename T>
-    using if_void = typename std::enable_if<std::is_same<T, void>::value, T>::type;
-  }
-// --Nimata library: frontend struct and class definitions--------------------------------------------------------------
-  class Pool final
-  {
-  public:
-    inline Pool(signed number_of_threads = MAX_THREADS) noexcept;
-    inline ~Pool() noexcept;
-    template<typename F, typename... A>
-    inline auto push(F function, A... arguments) noexcept -> std::future<Backend::if_non_void<decltype(function(arguments...))>>;
-    template<typename F, typename... A>
-    inline auto push(F function, A... arguments) noexcept -> Backend::if_void<decltype(function(arguments...))>;
-    // inline void pu sh(Work work) noexcept;
-    inline void wait() noexcept;
-    const unsigned size;
-  private:
-    std::atomic_bool active = {true};
-    Backend::Worker* workers;
-    std::mutex       mtx;
-    std::queue<Work> queue;
-    inline void async_assign() noexcept;
-    std::thread assignation_thread{async_assign, this};
-  };
-// --Nimata library: backend  struct and class definitions--------------------------------------------------------------
-  namespace Backend
-  {
-    class Worker final
+    class _worker final
     {
     public:
-      ~Worker() noexcept
+      ~_worker() noexcept
       {
         alive = false;
         worker_thread.join();
       }
 
-      void task(Work&& work) noexcept
+      void task(std::function<void()>&& work) noexcept
       {
         this->work     = std::move(work);
         work_available = true;
@@ -161,9 +118,9 @@ namespace Nimata
 
       void loop()
       {
-        while (alive)
+        while (alive) NIMATA_HOT
         {
-          if (work_available)
+          if (work_available) NIMATA_COLD
           {
             work();
             work_available = false;
@@ -173,46 +130,87 @@ namespace Nimata
         }
       }
     private:
-      std::atomic_bool work_available = {false};
-      Work             work  = nullptr;
-      volatile bool    alive = true;
-      std::thread      worker_thread{loop, this};
+      std::atomic_bool      work_available = {false};
+      std::function<void()> work  = nullptr;
+      volatile bool         alive = true;
+      std::thread           worker_thread{loop, this};
     };
 
     template<Period period>
-    class CyclicExecuter final
+    class _cyclicexecuter final
     {
     static_assert(period >= 0, "period must be greater than 0");
     public:
-      inline CyclicExecuter(Work work) noexcept;
-      inline ~CyclicExecuter() noexcept;
-      CyclicExecuter(const CyclicExecuter&) noexcept {}
+      inline _cyclicexecuter(std::function<void()> work) noexcept;
+      inline ~_cyclicexecuter() noexcept;
+      _cyclicexecuter(const _cyclicexecuter&) noexcept {}
     private:
       inline void loop();
-      Work          work;
-      volatile bool alive = true;
-      std::thread   worker_thread{loop, this};
+      std::function<void()> work;
+      volatile bool         alive = true;
+      std::thread           worker_thread{loop, this};
     };
+
+# if defined(NIMATA_LOGGING)
+    void _log(const char* caller, const char* message)
+    {
+      static std::mutex mtx;
+      std::lock_guard<std::mutex> lock{mtx};
+      Global::log << caller << ": " << message << std::endl;
+    }
+    
+#   define NIMATA_LOG(...)              \
+      [&](const char* caller){          \
+        static char buffer[255];        \
+        sprintf(buffer, __VA_ARGS__);   \
+        _backend::_log(caller, buffer); \
+      }(__func__)
+# else
+#   define NIMATA_LOG(...) void(0)
+# endif
+
+    template<typename T>
+    using _if_type = typename std::enable_if<not std::is_same<T, void>::value, T>::type;
+
+    template<typename T>
+    using _if_void     = typename std::enable_if<std::is_same<T, void>::value, T>::type;
   }
+// --Nimata library: frontend struct and class definitions--------------------------------------------------------------
+  class Pool final
+  {
+  public:
+    inline
+    Pool(signed number_of_threads = MAX_THREADS) noexcept;
+
+    inline 
+    ~Pool() noexcept;
+
+    template<typename F, typename... A> inline
+    auto push(F function, A... arguments) noexcept -> std::future<_backend::_if_type<decltype(function(arguments...))>>;
+
+    template<typename F, typename... A> inline
+    auto push(F function, A... arguments) noexcept -> _backend::_if_void<decltype(function(arguments...))>;
+
+    inline
+    void wait() const noexcept;
+
+    auto size() const noexcept -> unsigned { return n_workers; }
+  private:
+    unsigned           n_workers;
+    std::atomic_bool   active = {true};
+    _backend::_worker* workers;
+    std::mutex         mtx;
+    std::queue<std::function<void()>> queue;
+    inline void async_assign() noexcept;
+    std::thread assignation_thread{async_assign, this};
+    static inline unsigned compute_number_of_threads(signed N) noexcept;
+  };
 // --Nimata library: frontend definitions-------------------------------------------------------------------------------
   Pool::Pool(signed N) noexcept :
-    size{[=] mutable {
-      if (N <= 0)
-      {
-        N += MAX_THREADS;
-      }
-      
-      if (N < 1)
-      {
-        N = 1;
-        NIMATA_LOG("%d thread%s is not possible, 1 used instead", N, N == -1 ? "" : "s");
-      }
-      
-      return N;
-    }()},
-    workers{new Backend::Worker[size]}
+    n_workers{compute_number_of_threads(N)},
+    workers{new _backend::_worker[n_workers]}
   {
-    NIMATA_LOG("%u thread%s aquired", size, size == 1 ? "" : "s");
+    NIMATA_LOG("%u thread%s aquired", n_workers, n_workers == 1 ? "" : "s");
   }
 
   Pool::~Pool() noexcept
@@ -228,21 +226,24 @@ namespace Nimata
   }
   
   template<typename F, typename... A>
-  auto Pool::push(F function, A... arguments) noexcept -> std::future<Backend::if_non_void<decltype(function(arguments...))>>
+  auto Pool::push(F function, A... arguments) noexcept -> std::future<_backend::_if_type<decltype(function(arguments...))>>
   {
     using R = decltype(function(arguments...));
 
     std::future<R> future;
 
-    if (function)
+    if (function) NIMATA_HOT
     {
-      std::shared_ptr<std::promise<R>> promise(new std::promise<R>);
+      std::promise<R>* promise = new std::promise<R>;
       
       future = promise->get_future();
       
       {
         std::lock_guard<std::mutex> lock{mtx};
-        queue.push([=]{ promise->set_value(function(arguments...)); });
+        queue.push([=]{
+          std::unique_ptr<std::promise<R>> ptr_guard(promise);
+          promise->set_value(function(arguments...));
+        });
       }
 
       NIMATA_LOG("pushed a task with return value");
@@ -253,28 +254,32 @@ namespace Nimata
   }
   
   template<typename F, typename... A>
-  auto Pool::push(F function, A... arguments) noexcept -> Backend::if_void<decltype(function(arguments...))>
+  auto Pool::push(F function, A... arguments) noexcept -> _backend::_if_void<decltype(function(arguments...))>
   {
-    if (function)
+    if (function) NIMATA_HOT
     {      
       {
         std::lock_guard<std::mutex> lock{mtx};
-        queue.push([=]{ function(arguments...); });
+        queue.push([=]{
+          function(arguments...);
+        });
       }
 
-      NIMATA_LOG("pushed a task with return value");
+      NIMATA_LOG("pushed a task with no return value");
     }
-    else NIMATA_LOG("invalid task pushed");;
+    else NIMATA_LOG("invalid task pushed");
+
+    return;
   }
 
-  void Pool::wait() noexcept
+  void Pool::wait() const noexcept
   {
     while (queue.empty() == false)
     {
       std::this_thread::sleep_for(std::chrono::microseconds{1});
     };
 
-    for (unsigned k = 0; k < size; ++k)
+    for (unsigned k = 0; k < n_workers; ++k)
     {
       while (workers[k].busy())
       {
@@ -289,12 +294,12 @@ namespace Nimata
   {
     while (active)
     {
-      for (unsigned k = 0; k < size; ++k)
+      for (unsigned k = 0; k < n_workers; ++k)
       {
-        if (not workers[k].busy())
+        if (workers[k].busy() == false)
         {
           std::lock_guard<std::mutex> lock{mtx};
-          if (not queue.empty())
+          if (queue.empty() == false)
           {
             workers[k].task(std::move(queue.front()));
             queue.pop();
@@ -304,12 +309,28 @@ namespace Nimata
       }
     }
   }
+
+  unsigned Pool::compute_number_of_threads(signed N) noexcept
+  {
+    if (N <= 0)
+    {
+      N += MAX_THREADS;
+    }
+    
+    if (N < 1)
+    {
+      N = 1;
+      NIMATA_LOG("%d thread%s is not possible, 1 used instead", N, N == -1 ? "" : "s");
+    }
+    
+    return static_cast<unsigned>(N);
+  }
   
 # undef  NIMATA_CYCLIC
 # define NIMATA_CYCLIC(period_us) NIMATA_CYCLIC_PROX(__LINE__, period_us)
 # define NIMATA_CYCLIC_PROX(...)  NIMATA_CYCLIC_IMPL(__VA_ARGS__)
-# define NIMATA_CYCLIC_IMPL(line, period_us)                                            \
-    Nimata::Backend::CyclicExecuter<period_us> cyclic_worker_##line = (Nimata::Work)[&]
+# define NIMATA_CYCLIC_IMPL(line, period_us)                                                     \
+    Nimata::_backend::_cyclicexecuter<period_us> cyclic_worker_##line = (std::function<void()>)[&]
 
   inline namespace Literals
   {
@@ -344,17 +365,17 @@ namespace Nimata
     }
   }
 // --Nimata library: backend definitions--------------------------------------------------------------------------------
-  namespace Backend
+  namespace _backend
   {
     template<Period period>
-    CyclicExecuter<period>::CyclicExecuter(Work work) noexcept :
-      work{work ? NIMATA_LOG("work is invalid"), nullptr : work}
+    _cyclicexecuter<period>::_cyclicexecuter(std::function<void()> work) noexcept :
+      work{work ? work : (NIMATA_LOG("work is invalid"), nullptr)}
     {
       NIMATA_LOG("thread spawned");
     }
 
     template<Period period>
-    CyclicExecuter<period>::~CyclicExecuter() noexcept
+    _cyclicexecuter<period>::~_cyclicexecuter() noexcept
     {
       alive = false;
       worker_thread.join();
@@ -362,7 +383,7 @@ namespace Nimata
     }
 
     template<Period period>
-    void CyclicExecuter<period>::loop()
+    void _cyclicexecuter<period>::loop()
     {
       if (work)
       {
@@ -384,7 +405,7 @@ namespace Nimata
     }
 
     template<>
-    void CyclicExecuter<0>::loop()
+    void _cyclicexecuter<0>::loop()
     {
       if (work)
       {
@@ -395,5 +416,7 @@ namespace Nimata
       }
     }
   }
+# undef NIMATA_COLD
+# undef NIMATA_HOT
 }
 #endif

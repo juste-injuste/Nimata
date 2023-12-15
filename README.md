@@ -12,7 +12,7 @@ Nimata is a simple and lightweight C++11 (and newer) library that offers multith
 Nimata offers the following:
 * [Pool](#Pool) to create thread pools
 * [Queue](#Queue) is a thread-safe FIFO data structure
-* [NIMATA_ASYNC](#NIMATA_CYCLIC) to periodically call code blocks
+* [NIMATA_CYCLIC](#NIMATA_CYCLIC) to periodically call code blocks
 * `MAX_THREADS` is the hardware thread concurency
 ---
 
@@ -32,6 +32,7 @@ When a `Pool` is destroyed, it waits until the work queue is empty, then waits f
 
 _Example_:<br>
 The following example executes 100 sleeps of 100 milliseconds, which would take about 10 seconds were it done in a single thread. Here, it takes 2.781 seconds on my specific machine, which is a substantial speed up.
+
 ```cpp
 #include "Nimata.hpp"
 #include <thread>
