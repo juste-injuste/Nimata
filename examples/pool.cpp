@@ -1,4 +1,4 @@
-#include "../include/Nimata.hpp"
+#include "Nimata.hpp"
 #include <thread>
 #include <chrono>
 #include <iostream>
@@ -20,8 +20,9 @@ int main()
     pool.push(work);
   }
   pool.wait();
-  auto end = steady_clock::now();
-  auto elapsed = duration_cast<milliseconds>(end - start).count()*0.001;
+  auto end     = steady_clock::now();
+  auto elapsed = static_cast<float>(duration_cast<milliseconds>(end - start).count())*0.001f;
 
+  // would take 10 seconds if it were single-threaded
   std::cout << "elapsed time: " << elapsed << " s\n";
 }

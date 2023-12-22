@@ -8,7 +8,6 @@
 static std::atomic_uint work_count;
 int some_work()
 {
-  // std::this_thread::sleep_for(std::chrono::milliseconds(10));
   return ++work_count;
 }
 
@@ -39,9 +38,9 @@ void threadpool_demo()
   auto total_start = steady_clock::now();
   for (unsigned k = 5000; k; --k)
   {
-    pool.push(some_work);
+    auto f1 = pool.push(some_work);
     pool.push(other_work);
-    pool.push(more_work, 1);
+    auto f2 = pool.push(more_work, 1);
     pool.push(hihi_work, 1);
   }
   pool.wait();

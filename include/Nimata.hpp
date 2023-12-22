@@ -35,21 +35,21 @@ SOFTWARE.
 -----inclusion guard--------------------------------------------------------------------------------------------------*/
 #if not defined(NIMATA_HPP) and defined(__STDCPP_THREADS__)
 #define NIMATA_HPP
-// --necessary standard libraries---------------------------------------------------------------------------------------
+//---necessary libraries------------------------------------------------------------------------------------------------
 #include <thread>     // for std::thread
 #include <mutex>      // for std::mutex, std::lock_guard
 #include <atomic>     // for std::atomic_bool
 #include <future>     // for std::future, std::promise
 #include <functional> // for std::function
 #include <queue>      // for std::queue
-#include <memory>     // for std::unique_ptr
 #include <chrono>     // for std::chrono::*
-#ifdef NIMATA_LOGGING
-# include <cstdio>    // for std::sprintf
-#endif
 #include <ostream>    // for std::ostream
 #include <iostream>   // for std::clog
-// --Nimata library-----------------------------------------------------------------------------------------------------
+//---supplementary libraries--------------------------------------------------------------------------------------------
+#if defined(NIMATA_LOGGING)
+# include <cstdio>    // for std::sprintf
+#endif
+//---Nimata library-----------------------------------------------------------------------------------------------------
 namespace Nimata
 {
   namespace Version
@@ -82,18 +82,46 @@ namespace Nimata
   {
     std::ostream log{std::clog.rdbuf()}; // logging ostream
   }
-// --Nimata library: backend forward declaration------------------------------------------------------------------------
+//---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _backend
   {
-# if defined(__GNUC__) and (__GNUC__ >= 9)
-#   define NIMATA_COLD [[unlikely]]
+# if defined(__GNUC__) and (__GNUC__ >= 10)
 #   define NIMATA_HOT  [[likely]]
-# elif defined(__clang__) and (__clang_major__ >= 9)
-#   define NIMATA_COLD [[unlikely]]
+# elif defined(__clang__) and (__clang_major__ >= 12)
 #   define NIMATA_HOT  [[likely]]
 # else
-#   define NIMATA_COLD
 #   define NIMATA_HOT
+# endif
+
+# if defined(__GNUC__) and (__GNUC__ >= 7)
+#   define NIMATA_NODISCARD [[nodiscard]]
+# elif defined(__clang__) and ((__clang_major__ > 3) or ((__clang_major__ == 3) and (__clang_minor__ >= 9)))
+#   define NIMATA_NODISCARD [[nodiscard]]
+# else
+#   define NIMATA_NODISCARD
+# endif
+
+#if defined(__GNUC__) && (__GNUC__ >= 10)
+#   define NIMATA_NODISCARD_REASON(reason) [[nodiscard(reason)]]
+#elif defined(__clang__) && (__clang_major__ >= 10)
+#   define NIMATA_NODISCARD_REASON(reason) [[nodiscard(reason)]]
+#else
+#   define NIMATA_NODISCARD_REASON(reason) NIMATA_NODISCARD
+#endif
+
+# if defined(NIMATA_LOGGING)
+    thread_local char _log_buffer[256];
+    std::mutex _log_mtx;
+    
+#   define NIMATA_LOG(...)                                     \
+      [&](const char* caller){                                 \
+        sprintf(_backend::_log_buffer, __VA_ARGS__);           \
+        std::lock_guard<std::mutex> _lock{_backend::_log_mtx}; \
+        Global::log << caller << ": "                          \
+        << _backend::_log_buffer << std::endl;                 \
+      }(__func__)
+# else
+#   define NIMATA_LOG(...) void(0)
 # endif
 
     class _worker final
@@ -105,9 +133,9 @@ namespace Nimata
         worker_thread.join();
       }
 
-      void task(std::function<void()>&& work) noexcept
+      void task(std::function<void()>&& task) noexcept
       {
-        this->work     = std::move(work);
+        work = std::move(task);
         work_available = true;
       }
 
@@ -120,7 +148,7 @@ namespace Nimata
       {
         while (alive) NIMATA_HOT
         {
-          if (work_available) NIMATA_COLD
+          if (work_available) NIMATA_HOT
           {
             work();
             work_available = false;
@@ -139,61 +167,92 @@ namespace Nimata
     template<Period period>
     class _cyclicexecuter final
     {
-    static_assert(period >= 0, "period must be greater than 0");
+    static_assert(period >= 0, "NIMATA_CYCLIC: period must be greater than 0");
     public:
-      inline _cyclicexecuter(std::function<void()> work) noexcept;
-      inline ~_cyclicexecuter() noexcept;
+      _cyclicexecuter(std::function<void()> task) noexcept :
+        work{task ? task : (NIMATA_LOG("task is invalid"), nullptr)}
+      {
+        NIMATA_LOG("thread spawned");
+      }
+
       _cyclicexecuter(const _cyclicexecuter&) noexcept {}
+
+      ~_cyclicexecuter() noexcept
+      {
+        alive = false;
+        worker_thread.join();
+        NIMATA_LOG("thread joined");
+      }
     private:
       inline void loop();
       std::function<void()> work;
       volatile bool         alive = true;
       std::thread           worker_thread{loop, this};
     };
-
-# if defined(NIMATA_LOGGING)
-    void _log(const char* caller, const char* message)
-    {
-      static std::mutex mtx;
-      std::lock_guard<std::mutex> lock{mtx};
-      Global::log << caller << ": " << message << std::endl;
-    }
     
-#   define NIMATA_LOG(...)              \
-      [&](const char* caller){          \
-        static char buffer[255];        \
-        sprintf(buffer, __VA_ARGS__);   \
-        _backend::_log(caller, buffer); \
-      }(__func__)
-# else
-#   define NIMATA_LOG(...) void(0)
-# endif
+    template<Period period>
+    void _cyclicexecuter<period>::loop()
+    {
+      if (work)
+      {
+        std::chrono::high_resolution_clock::time_point previous = {};
+        std::chrono::high_resolution_clock::time_point now;
+        std::chrono::nanoseconds::rep                  elapsed;
+
+        while (alive)
+        {
+          now     = std::chrono::high_resolution_clock::now();
+          elapsed = std::chrono::nanoseconds{now - previous}.count();
+          if (elapsed >= period)
+          {
+            previous = now;
+            work();
+          }
+        }
+      }
+    }
+
+    template<>
+    void _cyclicexecuter<0>::loop()
+    {
+      if (work)
+      {
+        while (alive)
+        {
+          work();
+        }
+      }
+    }
 
     template<typename T>
     using _if_type = typename std::enable_if<not std::is_same<T, void>::value, T>::type;
 
     template<typename T>
-    using _if_void     = typename std::enable_if<std::is_same<T, void>::value, T>::type;
+    using _if_void = typename std::enable_if<std::is_same<T, void>::value, T>::type;
   }
-// --Nimata library: frontend struct and class definitions--------------------------------------------------------------
+//---Nimata library: frontend struct and class definitions--------------------------------------------------------------
   class Pool final
   {
   public:
-    inline
+    inline // constructs pool
     Pool(signed number_of_threads = MAX_THREADS) noexcept;
 
-    inline 
+    inline // waits for all work to be done then join threads
     ~Pool() noexcept;
 
-    template<typename F, typename... A> inline
+    // add work that has a return value to queue
+    template<typename F, typename... A>
+    NIMATA_NODISCARD_REASON("push: consider wrapping in a lambda if you don't use the return value") inline
     auto push(F function, A... arguments) noexcept -> std::future<_backend::_if_type<decltype(function(arguments...))>>;
 
+    // add work that does not have a return value to queue
     template<typename F, typename... A> inline
     auto push(F function, A... arguments) noexcept -> _backend::_if_void<decltype(function(arguments...))>;
 
-    inline
+    inline // waits for all work to be done
     void wait() const noexcept;
 
+    // query amount of workers
     auto size() const noexcept -> unsigned { return n_workers; }
   private:
     unsigned           n_workers;
@@ -205,7 +264,7 @@ namespace Nimata
     std::thread assignation_thread{async_assign, this};
     static inline unsigned compute_number_of_threads(signed N) noexcept;
   };
-// --Nimata library: frontend definitions-------------------------------------------------------------------------------
+//---Nimata library: frontend definitions-------------------------------------------------------------------------------
   Pool::Pool(signed N) noexcept :
     n_workers{compute_number_of_threads(N)},
     workers{new _backend::_worker[n_workers]}
@@ -241,8 +300,8 @@ namespace Nimata
       {
         std::lock_guard<std::mutex> lock{mtx};
         queue.push([=]{
-          std::unique_ptr<std::promise<R>> ptr_guard(promise);
           promise->set_value(function(arguments...));
+          delete promise;
         });
       }
 
@@ -329,14 +388,14 @@ namespace Nimata
 # undef  NIMATA_CYCLIC
 # define NIMATA_CYCLIC(period_us) NIMATA_CYCLIC_PROX(__LINE__, period_us)
 # define NIMATA_CYCLIC_PROX(...)  NIMATA_CYCLIC_IMPL(__VA_ARGS__)
-# define NIMATA_CYCLIC_IMPL(line, period_us)                                                     \
+# define NIMATA_CYCLIC_IMPL(line, period_us)                                                       \
     Nimata::_backend::_cyclicexecuter<period_us> cyclic_worker_##line = (std::function<void()>)[&]
 
   inline namespace Literals
   {
     constexpr Period operator ""_mHz(long double frequency)
     {
-      return 1000000000000/frequency;
+      return static_cast<Period>(1000000000000/frequency);
     }
 
     constexpr Period operator ""_mHz(unsigned long long frequency)
@@ -346,7 +405,7 @@ namespace Nimata
 
     constexpr Period operator ""_Hz(long double frequency)
     {
-      return 1000000000/frequency;
+      return static_cast<Period>(1000000000/frequency);
     }
 
     constexpr Period operator ""_Hz(unsigned long long frequency)
@@ -356,7 +415,7 @@ namespace Nimata
     
     constexpr Period operator ""_kHz(long double frequency)
     {
-      return 1000000/frequency;
+      return static_cast<Period>(1000000/frequency);
     }
 
     constexpr Period operator ""_kHz(unsigned long long frequency)
@@ -364,59 +423,10 @@ namespace Nimata
       return 1000000/frequency;
     }
   }
-// --Nimata library: backend definitions--------------------------------------------------------------------------------
-  namespace _backend
-  {
-    template<Period period>
-    _cyclicexecuter<period>::_cyclicexecuter(std::function<void()> work) noexcept :
-      work{work ? work : (NIMATA_LOG("work is invalid"), nullptr)}
-    {
-      NIMATA_LOG("thread spawned");
-    }
-
-    template<Period period>
-    _cyclicexecuter<period>::~_cyclicexecuter() noexcept
-    {
-      alive = false;
-      worker_thread.join();
-      NIMATA_LOG("thread joined");
-    }
-
-    template<Period period>
-    void _cyclicexecuter<period>::loop()
-    {
-      if (work)
-      {
-        std::chrono::high_resolution_clock::time_point previous = {};
-        std::chrono::high_resolution_clock::time_point now;
-        std::chrono::nanoseconds::rep                  elapsed;
-
-        while (alive)
-        {
-          now     = std::chrono::high_resolution_clock::now();
-          elapsed = std::chrono::nanoseconds{now - previous}.count();
-          if (elapsed >= period)
-          {
-            previous = now;
-            work();
-          }
-        }
-      }
-    }
-
-    template<>
-    void _cyclicexecuter<0>::loop()
-    {
-      if (work)
-      {
-        while (alive)
-        {
-          work();
-        }
-      }
-    }
-  }
-# undef NIMATA_COLD
+//----------------------------------------------------------------------------------------------------------------------
 # undef NIMATA_HOT
+# undef NIMATA_NODISCARD
+# undef NIMATA_NODISCARD_REASON
+# undef NIMATA_LOG
 }
 #endif

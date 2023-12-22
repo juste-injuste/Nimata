@@ -31,7 +31,7 @@ _Destructor_:<br>
 When a `Pool` is destroyed, it waits until the work queue is empty, then waits for all the workers to be done with their work and finally it joins all the used threads.
 
 _Example_:<br>
-The following example executes 100 sleeps of 100 milliseconds, which would take about 10 seconds were it done in a single thread. Here, it takes 2.781 seconds on my specific machine, which is a substantial speed up.
+The following example executes 100 sleeps of 100 milliseconds, which would take about 10 seconds were it done in a single thread. Here, it takes ~2.75 seconds on my specific machine, which is a substantial speed up.
 
 ```cpp
 #include "Nimata.hpp"
@@ -59,6 +59,7 @@ int main()
   auto end     = steady_clock::now();
   auto elapsed = duration_cast<milliseconds>(end - start).count()*0.001;
 
+  // would take 10 seconds if it were single-threaded
   std::cout << "elapsed time: " << elapsed << " s\n";
 }
 ```
