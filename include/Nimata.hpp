@@ -33,7 +33,9 @@ SOFTWARE.
 -----description--------------------------------------------------------------------------------------------------------
 
 -----inclusion guard--------------------------------------------------------------------------------------------------*/
-#if not defined(NIMATA_HPP) and defined(__STDCPP_THREADS__)
+#if not defined(NIMATA_HPP)
+#if defined(__cplusplus) and __cplusplus >= 201103L
+#if defined(__STDCPP_THREADS__)
 #define NIMATA_HPP
 //---necessary libraries------------------------------------------------------------------------------------------------
 #include <thread>     // for std::thread
@@ -52,14 +54,6 @@ SOFTWARE.
 //---Nimata library-----------------------------------------------------------------------------------------------------
 namespace Nimata
 {
-  namespace Version
-  {
-    constexpr long MAJOR  = 000;
-    constexpr long MINOR  = 001;
-    constexpr long PATCH  = 000;
-    constexpr long NUMBER = (MAJOR * 1000 + MINOR) * 1000 + PATCH;
-  }
-
   const unsigned MAX_THREADS = std::thread::hardware_concurrency();
 
   class Pool;
@@ -81,6 +75,14 @@ namespace Nimata
   namespace Global
   {
     std::ostream log{std::clog.rdbuf()}; // logging ostream
+  }
+
+  namespace Version
+  {
+    constexpr long MAJOR  = 000;
+    constexpr long MINOR  = 001;
+    constexpr long PATCH  = 000;
+    constexpr long NUMBER = (MAJOR * 1000 + MINOR) * 1000 + PATCH;
   }
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _backend
@@ -381,6 +383,11 @@ namespace Nimata
       NIMATA_LOG("%d threads is not possible, 1 used instead", N);
       N = 1;
     }
+
+    if (N > static_cast<signed>(MAX_THREADS - 2))
+    {
+      NIMATA_LOG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N);
+    }
     
     return static_cast<unsigned>(N);
   }
@@ -429,4 +436,10 @@ namespace Nimata
 # undef NIMATA_NODISCARD_REASON
 # undef NIMATA_LOG
 }
+#else
+#error "Nimata: Concurrent execution is required"
+#endif
+#else
+#error "Nimata: Support for ISO C++11 is required"
+#endif
 #endif
