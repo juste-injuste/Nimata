@@ -70,6 +70,7 @@ _Logs_:
 * `"all workers finished their work"` when wait() is done.
 * `"assigned to worker #X"` when the assignation thread tasks a worker.
 * `"X threads is not possible, 1 used instead"` when the asked number of threads is less than 1. Note that Pool(0) maps to MAX_THREADS.
+* `"MAX_THREADS - 2 is the recommended maximum amount of threads, X used"` when asking for more threads than MAX_THREADS - 2.
 
 ---
 
