@@ -34,7 +34,7 @@ SOFTWARE.
 
 -----inclusion guard--------------------------------------------------------------------------------------------------*/
 #if not defined(NIMATA_HPP)
-#if defined(__cplusplus) and __cplusplus >= 201103L
+#if defined(__cplusplus) and (__cplusplus >= 201103L)
 #if defined(__STDCPP_THREADS__)
 #define NIMATA_HPP
 //---necessary libraries------------------------------------------------------------------------------------------------
