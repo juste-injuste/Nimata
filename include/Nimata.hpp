@@ -87,40 +87,39 @@ namespace Nimata
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _backend
   {
-# if defined(__GNUC__) and (__GNUC__ >= 10)
+# if defined(__clang__) and (__clang_major__ >= 12)
 #   define NIMATA_HOT  [[likely]]
-# elif defined(__clang__) and (__clang_major__ >= 12)
+# elif defined(__GNUC__) and (__GNUC__ >= 10)
 #   define NIMATA_HOT  [[likely]]
 # else
 #   define NIMATA_HOT
 # endif
 
-# if defined(__GNUC__) and (__GNUC__ >= 7)
+# if defined(__clang__) and ((__clang_major__ > 3) or ((__clang_major__ == 3) and (__clang_minor__ >= 9)))
 #   define NIMATA_NODISCARD [[nodiscard]]
-# elif defined(__clang__) and ((__clang_major__ > 3) or ((__clang_major__ == 3) and (__clang_minor__ >= 9)))
+# elif defined(__GNUC__) and (__GNUC__ >= 7)
 #   define NIMATA_NODISCARD [[nodiscard]]
 # else
 #   define NIMATA_NODISCARD
 # endif
 
-#if defined(__GNUC__) && (__GNUC__ >= 10)
+# if defined(__clang__) && (__clang_major__ >= 10)
 #   define NIMATA_NODISCARD_REASON(reason) [[nodiscard(reason)]]
-#elif defined(__clang__) && (__clang_major__ >= 10)
+# elif defined(__GNUC__) && (__GNUC__ >= 10)
 #   define NIMATA_NODISCARD_REASON(reason) [[nodiscard(reason)]]
-#else
+# else
 #   define NIMATA_NODISCARD_REASON(reason) NIMATA_NODISCARD
-#endif
+# endif
 
 # if defined(NIMATA_LOGGING)
     thread_local char _log_buffer[256];
     std::mutex _log_mtx;
     
-#   define NIMATA_LOG(...)                                     \
-      [&](const char* caller){                                 \
-        sprintf(_backend::_log_buffer, __VA_ARGS__);           \
-        std::lock_guard<std::mutex> _lock{_backend::_log_mtx}; \
-        Global::log << caller << ": "                          \
-        << _backend::_log_buffer << std::endl;                 \
+#   define NIMATA_LOG(...)                                                   \
+      [&](const char* caller){                                               \
+        sprintf(_backend::_log_buffer, __VA_ARGS__);                         \
+        std::lock_guard<std::mutex> _lock{_backend::_log_mtx};               \
+        Global::log << caller << ": " << _backend::_log_buffer << std::endl; \
       }(__func__)
 # else
 #   define NIMATA_LOG(...) void(0)
@@ -188,8 +187,8 @@ namespace Nimata
     private:
       inline void loop();
       std::function<void()> work;
-      volatile bool         alive = true;
-      std::thread           worker_thread{loop, this};
+      volatile bool alive = true;
+      std::thread   worker_thread{loop, this};
     };
     
     template<Period period>
