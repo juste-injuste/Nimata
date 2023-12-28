@@ -116,7 +116,7 @@ namespace Nimata
 // support from clang 3.9.0 and GCC 7.1 onward
 # if defined(__clang__) and ((__clang_major__ > 3) or ((__clang_major__ == 3) and (__clang_minor__ >= 9)))
 # if __cplusplus < 201703L
-#   define NIMATA_NODISCARD NIMATA_CLANG_IGNORE("-Wc++1z-extensions", [[nodiscard]])                               \
+#   define NIMATA_NODISCARD NIMATA_CLANG_IGNORE("-Wc++1z-extensions", [[nodiscard]])
 # else
 #   define NIMATA_NODISCARD [[nodiscard]]
 # endif
