@@ -87,28 +87,56 @@ namespace Nimata
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _backend
   {
+#   define NIMATA_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
+#   define NIMATA_CLANG_IGNORE(WARNING, ...)          \
+      NIMATA_PRAGMA(clang diagnostic push)            \
+      NIMATA_PRAGMA(clang diagnostic ignored WARNING) \
+      __VA_ARGS__                                     \
+      NIMATA_PRAGMA(clang diagnostic pop)
+
+# if defined(__clang__) or defined(__GNUC__)
+#   define NIMATA_INLINE inline __attribute__((always_inline))
+# else
+#   define NIMATA_INLINE inline
+# endif
+
+// support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
+# if __cplusplus < 202002L
+#   define NIMATA_HOT  NIMATA_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
+# else
 #   define NIMATA_HOT  [[likely]]
+# endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
 #   define NIMATA_HOT  [[likely]]
 # else
 #   define NIMATA_HOT
 # endif
 
+// support from clang 3.9.0 and GCC 7.1 onward
 # if defined(__clang__) and ((__clang_major__ > 3) or ((__clang_major__ == 3) and (__clang_minor__ >= 9)))
+# if __cplusplus < 201703L
+#   define NIMATA_NODISCARD NIMATA_CLANG_IGNORE("-Wc++1z-extensions", [[nodiscard]])                               \
+# else
 #   define NIMATA_NODISCARD [[nodiscard]]
+# endif
 # elif defined(__GNUC__) and (__GNUC__ >= 7)
 #   define NIMATA_NODISCARD [[nodiscard]]
 # else
 #   define NIMATA_NODISCARD
 # endif
 
-# if defined(__clang__) && (__clang_major__ >= 10)
-#   define NIMATA_NODISCARD_REASON(reason) [[nodiscard(reason)]]
-# elif defined(__GNUC__) && (__GNUC__ >= 10)
-#   define NIMATA_NODISCARD_REASON(reason) [[nodiscard(reason)]]
+// support from clang 10.0.0 and GCC 10.1 onward
+# if defined(__clang__) and (__clang_major__ >= 10)
+# if __cplusplus < 202002L
+#   define NIMATA_NODISCARD_REASON(REASON) NIMATA_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
 # else
-#   define NIMATA_NODISCARD_REASON(reason) NIMATA_NODISCARD
+#   define NIMATA_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+# endif
+# elif defined(__GNUC__) and (__GNUC__ >= 10)
+#   define NIMATA_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+# else
+#   define NIMATA_NODISCARD_REASON(REASON) NIMATA_NODISCARD
 # endif
 
 # if defined(NIMATA_LOGGING)
