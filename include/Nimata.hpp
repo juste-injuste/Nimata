@@ -34,9 +34,9 @@ SOFTWARE.
 
 -----inclusion guard--------------------------------------------------------------------------------------------------*/
 #if not defined(NIMATA_HPP)
+#define NIMATA_HPP
 #if defined(__cplusplus) and (__cplusplus >= 201103L)
 #if defined(__STDCPP_THREADS__)
-#define NIMATA_HPP
 //---necessary libraries------------------------------------------------------------------------------------------------
 #include <thread>     // for std::thread
 #include <mutex>      // for std::mutex, std::lock_guard
@@ -94,12 +94,6 @@ namespace Nimata
       __VA_ARGS__                                     \
       NIMATA_PRAGMA(clang diagnostic pop)
 
-# if defined(__clang__) or defined(__GNUC__)
-#   define NIMATA_INLINE inline __attribute__((always_inline))
-# else
-#   define NIMATA_INLINE inline
-# endif
-
 // support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
 # if __cplusplus < 202002L
@@ -140,12 +134,12 @@ namespace Nimata
 # endif
 
 # if defined(NIMATA_LOGGING)
-    thread_local char _log_buffer[256];
-    std::mutex _log_mtx;
+    static thread_local char _log_buffer[256];
+    static std::mutex _log_mtx;
     
 #   define NIMATA_LOG(...)                                                   \
       [&](const char* caller){                                               \
-        sprintf(_backend::_log_buffer, __VA_ARGS__);                         \
+        std::sprintf(_backend::_log_buffer, __VA_ARGS__);                    \
         std::lock_guard<std::mutex> _lock{_backend::_log_mtx};               \
         Global::log << caller << ": " << _backend::_log_buffer << std::endl; \
       }(__func__)
@@ -458,13 +452,15 @@ namespace Nimata
     }
   }
 //----------------------------------------------------------------------------------------------------------------------
+# undef NIMATA_PRAGMA
+# undef NIMATA_CLANG_IGNORE
 # undef NIMATA_HOT
 # undef NIMATA_NODISCARD
 # undef NIMATA_NODISCARD_REASON
 # undef NIMATA_LOG
 }
 #else
-#error "Nimata: Concurrent execution is required"
+#error "Nimata: Concurrent threads are required"
 #endif
 #else
 #error "Nimata: Support for ISO C++11 is required"
