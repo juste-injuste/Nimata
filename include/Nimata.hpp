@@ -74,7 +74,7 @@ namespace Nimata
 
   namespace Global
   {
-    std::ostream log{std::clog.rdbuf()}; // logging ostream
+    static std::ostream log{std::clog.rdbuf()}; // logging ostream
   }
 
   namespace Version
@@ -191,7 +191,7 @@ namespace Nimata
       std::thread   worker_thread{loop, this};
     };
     
-    template<Period period>
+    template<Period period> inline
     void _cyclicexecuter<period>::loop()
     {
       if (work)
@@ -213,7 +213,7 @@ namespace Nimata
       }
     }
 
-    template<>
+    template<> inline
     void _cyclicexecuter<0>::loop()
     {
       if (work)

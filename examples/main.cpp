@@ -2,7 +2,7 @@
 #include <iostream>
 #include <atomic>
 
-#define NIMATA_LOGGING
+// #define NIMATA_LOGGING
 #include "../include/Nimata.hpp"
 
 static std::atomic_uint work_count;
@@ -84,11 +84,10 @@ void cyclic_demo()
 
 int main()
 { 
-  Nimata::Pool p(-20);
-  // while (true)
-  // {
-  //   threadpool_demo();
+  while (true)
+  {
+    threadpool_demo();
 
-  //   // cyclic_demo();
-  // }
+    cyclic_demo();
+  }
 }
