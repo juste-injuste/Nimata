@@ -38,9 +38,9 @@ SOFTWARE.
 #if defined(__cplusplus) and (__cplusplus >= 201103L)
 #if defined(__STDCPP_THREADS__)
 //---necessary libraries------------------------------------------------------------------------------------------------
-#include <thread>     // for std::thread
+#include <thread>     // for std::thread, std::this_thread::yield, std::this_thread::sleep_for
 #include <mutex>      // for std::mutex, std::lock_guard
-#include <atomic>     // for std::atomic_bool
+#include <atomic>     // for std::atomic
 #include <future>     // for std::future, std::promise
 #include <functional> // for std::function
 #include <queue>      // for std::queue
@@ -181,7 +181,7 @@ namespace Nimata
         }
       }
     private:
-      std::atomic_bool      work_available = {false};
+      std::atomic<bool>     work_available = {false};
       std::function<void()> work  = nullptr;
       volatile bool         alive = true;
       std::thread           worker_thread{loop, this};
@@ -279,7 +279,7 @@ namespace Nimata
     auto size() const noexcept -> unsigned { return n_workers; }
   private:
     unsigned           n_workers;
-    std::atomic_bool   active = {true};
+    std::atomic<bool>  active = {true};
     _backend::_worker* workers;
     std::mutex         mtx;
     std::queue<std::function<void()>> queue;
