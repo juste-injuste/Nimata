@@ -64,12 +64,23 @@ namespace Nimata
 
   inline namespace Literals
   {
-    constexpr Period operator ""_mHz(long double frequency);
-    constexpr Period operator ""_mHz(unsigned long long frequency);
-    constexpr Period operator ""_Hz(long double frequency);
-    constexpr Period operator ""_Hz(unsigned long long frequency);
-    constexpr Period operator ""_kHz(long double frequency);
-    constexpr Period operator ""_kHz(unsigned long long frequency);
+    constexpr
+    Period operator""_mHz(long double frequency);
+
+    constexpr
+    Period operator""_mHz(unsigned long long frequency);
+
+    constexpr
+    Period operator""_Hz(long double frequency);
+
+    constexpr
+    Period operator""_Hz(unsigned long long frequency);
+
+    constexpr
+    Period operator""_kHz(long double frequency);
+
+    constexpr
+    Period operator""_kHz(unsigned long long frequency);
   }
 
   namespace Global
@@ -87,35 +98,33 @@ namespace Nimata
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _backend
   {
+# if defined(__clang__)
 #   define NIMATA_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
 #   define NIMATA_CLANG_IGNORE(WARNING, ...)          \
       NIMATA_PRAGMA(clang diagnostic push)            \
       NIMATA_PRAGMA(clang diagnostic ignored WARNING) \
       __VA_ARGS__                                     \
       NIMATA_PRAGMA(clang diagnostic pop)
+# endif
 
 // support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
 # if __cplusplus < 202002L
-#   define NIMATA_HOT  NIMATA_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
+#   define NIMATA_HOT NIMATA_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
 # else
-#   define NIMATA_HOT  [[likely]]
+#   define NIMATA_HOT [[likely]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define NIMATA_HOT  [[likely]]
+#   define NIMATA_HOT [[likely]]
 # else
 #   define NIMATA_HOT
 # endif
 
-// support from clang 3.9.0 and GCC 7.1 onward
-# if defined(__clang__) and ((__clang_major__ > 3) or ((__clang_major__ == 3) and (__clang_minor__ >= 9)))
-# if __cplusplus < 201703L
-#   define NIMATA_NODISCARD NIMATA_CLANG_IGNORE("-Wc++1z-extensions", [[nodiscard]])
-# else
-#   define NIMATA_NODISCARD [[nodiscard]]
-# endif
-# elif defined(__GNUC__) and (__GNUC__ >= 7)
-#   define NIMATA_NODISCARD [[nodiscard]]
+// support from clang 3.9.0 and GCC 5.1 onward
+# if defined(__clang__)
+#   define NIMATA_NODISCARD __attribute__((warn_unused_result))
+# elif defined(__GNUC__)
+#   define NIMATA_NODISCARD __attribute__((warn_unused_result))
 # else
 #   define NIMATA_NODISCARD
 # endif
@@ -152,39 +161,38 @@ namespace Nimata
     public:
       ~_worker() noexcept
       {
-        alive = false;
-        worker_thread.join();
+        _alive = false;
+        _worker_thread.join();
       }
 
-      void task(std::function<void()>&& task) noexcept
+      void _task(std::function<void()>&& task) noexcept
       {
-        work = std::move(task);
-        work_available = true;
+        _work = std::move(task);
+        _work_available = true;
       }
 
-      bool busy() const noexcept
+      bool _busy() const noexcept
       {
-        return work_available;
+        return _work_available;
       }
-
-      void loop()
+    private:
+      void _loop()
       {
-        while (alive) NIMATA_HOT
+        while (_alive) NIMATA_HOT
         {
-          if (work_available) NIMATA_HOT
+          if (_work_available) NIMATA_HOT
           {
-            work();
-            work_available = false;
+            _work();
+            _work_available = false;
           }
           
           std::this_thread::yield();
         }
       }
-    private:
-      std::atomic<bool>     work_available = {false};
-      std::function<void()> work  = nullptr;
-      volatile bool         alive = true;
-      std::thread           worker_thread{loop, this};
+      volatile bool         _alive          = true;
+      std::function<void()> _work           = nullptr;
+      std::atomic<bool>     _work_available = {false};
+      std::thread           _worker_thread{_loop, this};
     };
 
     template<Period period>
@@ -193,7 +201,7 @@ namespace Nimata
     static_assert(period >= 0, "NIMATA_CYCLIC: period must be greater than 0");
     public:
       _cyclicexecuter(std::function<void()> task) noexcept :
-        work{task ? task : (NIMATA_LOG("task is invalid"), nullptr)}
+        _work{task ? task : (NIMATA_LOG("task is invalid"), nullptr)}
       {
         NIMATA_LOG("thread spawned");
       }
@@ -202,47 +210,49 @@ namespace Nimata
 
       ~_cyclicexecuter() noexcept
       {
-        alive = false;
-        worker_thread.join();
+        _alive = false;
+        _worker_thread.join();
         NIMATA_LOG("thread joined");
       }
     private:
-      inline void loop();
-      std::function<void()> work;
-      volatile bool alive = true;
-      std::thread   worker_thread{loop, this};
+      inline void _loop();
+      volatile bool         _alive = true;
+      std::function<void()> _work;
+      std::thread           _worker_thread{_loop, this};
     };
     
-    template<Period period> inline
-    void _cyclicexecuter<period>::loop()
+    template<Period period>
+    inline
+    void _cyclicexecuter<period>::_loop()
     {
-      if (work)
+      if (_work)
       {
         std::chrono::high_resolution_clock::time_point previous = {};
         std::chrono::high_resolution_clock::time_point now;
         std::chrono::nanoseconds::rep                  elapsed;
 
-        while (alive)
+        while (_alive)
         {
           now     = std::chrono::high_resolution_clock::now();
           elapsed = std::chrono::nanoseconds{now - previous}.count();
           if (elapsed >= period)
           {
             previous = now;
-            work();
+            _work();
           }
         }
       }
     }
 
-    template<> inline
-    void _cyclicexecuter<0>::loop()
+    template<>
+    inline
+    void _cyclicexecuter<0>::_loop()
     {
-      if (work)
+      if (_work)
       {
-        while (alive)
+        while (_alive)
         {
-          work();
+          _work();
         }
       }
     }
@@ -263,46 +273,46 @@ namespace Nimata
     inline // waits for all work to be done then join threads
     ~Pool() noexcept;
 
-    // add work that has a return value to queue
     template<typename F, typename... A>
-    NIMATA_NODISCARD_REASON("push: consider wrapping in a lambda if you don't use the return value") inline
+    NIMATA_NODISCARD_REASON("push: consider wrapping in a lambda if you don't use the return value")
+    inline // add work that has a return value to queue
     auto push(F function, A... arguments) noexcept -> std::future<_backend::_if_type<decltype(function(arguments...))>>;
 
-    // add work that does not have a return value to queue
-    template<typename F, typename... A> inline
+    template<typename F, typename... A>
+    inline // add work that does not have a return value to queue
     auto push(F function, A... arguments) noexcept -> _backend::_if_void<decltype(function(arguments...))>;
 
     inline // waits for all work to be done
     void wait() const noexcept;
 
     // query amount of workers
-    auto size() const noexcept -> unsigned { return n_workers; }
+    auto size() const noexcept -> unsigned { return _n_workers; }
   private:
-    unsigned           n_workers;
-    std::atomic<bool>  active = {true};
-    _backend::_worker* workers;
-    std::mutex         mtx;
-    std::queue<std::function<void()>> queue;
-    inline void async_assign() noexcept;
-    std::thread assignation_thread{async_assign, this};
-    static inline unsigned compute_number_of_threads(signed N) noexcept;
+    static inline unsigned _compute_number_of_threads(signed N) noexcept;
+    inline void _async_assign() noexcept;
+    std::atomic<bool>                 _active = {true};
+    unsigned                          _n_workers;
+    _backend::_worker*                _workers;
+    std::mutex                        _queue_mtx;
+    std::queue<std::function<void()>> _queue;
+    std::thread                       _assignation_thread{_async_assign, this};
   };
 //---Nimata library: frontend definitions-------------------------------------------------------------------------------
   Pool::Pool(signed N) noexcept :
-    n_workers{compute_number_of_threads(N)},
-    workers{new _backend::_worker[n_workers]}
+    _n_workers{_compute_number_of_threads(N)},
+    _workers{new _backend::_worker[_n_workers]}
   {
-    NIMATA_LOG("%u thread%s aquired", n_workers, n_workers == 1 ? "" : "s");
+    NIMATA_LOG("%u thread%s aquired", _n_workers, _n_workers == 1 ? "" : "s");
   }
 
   Pool::~Pool() noexcept
   {
     wait();
 
-    active = false;
-    assignation_thread.join();
+    _active = false;
+    _assignation_thread.join();
 
-    delete[] workers;
+    delete[] _workers;
 
     NIMATA_LOG("all workers killed");
   }
@@ -321,8 +331,8 @@ namespace Nimata
       future = promise->get_future();
       
       {
-        std::lock_guard<std::mutex> lock{mtx};
-        queue.push([=]{
+        std::lock_guard<std::mutex> lock{_queue_mtx};
+        _queue.push([=]{
           promise->set_value(function(arguments...));
           delete promise;
         });
@@ -341,8 +351,8 @@ namespace Nimata
     if (function) NIMATA_HOT
     {      
       {
-        std::lock_guard<std::mutex> lock{mtx};
-        queue.push([=]{
+        std::lock_guard<std::mutex> lock{_queue_mtx};
+        _queue.push([=]{
           function(arguments...);
         });
       }
@@ -356,14 +366,14 @@ namespace Nimata
 
   void Pool::wait() const noexcept
   {
-    while (queue.empty() == false)
+    while (_queue.empty() == false)
     {
       std::this_thread::sleep_for(std::chrono::microseconds{1});
     };
 
-    for (unsigned k = 0; k < n_workers; ++k)
+    for (unsigned k = 0; k < _n_workers; ++k)
     {
-      while (workers[k].busy())
+      while (_workers[k]._busy())
       {
         std::this_thread::sleep_for(std::chrono::microseconds{1});
       }
@@ -372,19 +382,19 @@ namespace Nimata
     NIMATA_LOG("all threads finished their work");
   }
 
-  void Pool::async_assign() noexcept
+  void Pool::_async_assign() noexcept
   {
-    while (active)
+    while (_active)
     {
-      for (unsigned k = 0; k < n_workers; ++k)
+      for (unsigned k = 0; k < _n_workers; ++k)
       {
-        if (workers[k].busy() == false)
+        if (_workers[k]._busy() == false)
         {
-          std::lock_guard<std::mutex> lock{mtx};
-          if (queue.empty() == false)
+          std::lock_guard<std::mutex> lock{_queue_mtx};
+          if (_queue.empty() == false)
           {
-            workers[k].task(std::move(queue.front()));
-            queue.pop();
+            _workers[k]._task(std::move(_queue.front()));
+            _queue.pop();
             NIMATA_LOG("assigned to worker thread #%02u", k);
           }
         }
@@ -392,7 +402,7 @@ namespace Nimata
     }
   }
 
-  unsigned Pool::compute_number_of_threads(signed N) noexcept
+  unsigned Pool::_compute_number_of_threads(signed N) noexcept
   {
     if (N <= 0)
     {
@@ -421,32 +431,38 @@ namespace Nimata
 
   inline namespace Literals
   {
-    constexpr Period operator ""_mHz(long double frequency)
+    constexpr
+    Period operator ""_mHz(long double frequency)
     {
       return static_cast<Period>(1000000000000/frequency);
     }
 
-    constexpr Period operator ""_mHz(unsigned long long frequency)
+    constexpr
+    Period operator ""_mHz(unsigned long long frequency)
     {
       return 1000000000000/frequency;
     }
 
-    constexpr Period operator ""_Hz(long double frequency)
+    constexpr
+    Period operator ""_Hz(long double frequency)
     {
       return static_cast<Period>(1000000000/frequency);
     }
 
-    constexpr Period operator ""_Hz(unsigned long long frequency)
+    constexpr
+    Period operator ""_Hz(unsigned long long frequency)
     {
       return 1000000000/frequency;
     }
     
-    constexpr Period operator ""_kHz(long double frequency)
+    constexpr
+    Period operator ""_kHz(long double frequency)
     {
       return static_cast<Period>(1000000/frequency);
     }
 
-    constexpr Period operator ""_kHz(unsigned long long frequency)
+    constexpr
+    Period operator ""_kHz(unsigned long long frequency)
     {
       return 1000000/frequency;
     }
