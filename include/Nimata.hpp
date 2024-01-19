@@ -47,6 +47,7 @@ SOFTWARE.
 #include <chrono>     // for std::chrono::*
 #include <ostream>    // for std::ostream
 #include <iostream>   // for std::clog
+#include <memory>     // for std::unique_ptr
 //---supplementary libraries--------------------------------------------------------------------------------------------
 #if defined(NIMATA_LOGGING)
 # include <cstdio>    // for std::sprintf
@@ -201,7 +202,7 @@ namespace Nimata
     static_assert(period >= 0, "NIMATA_CYCLIC: period must be greater than 0");
     public:
       _cyclicexecuter(std::function<void()> task) noexcept :
-        _work{task ? task : (NIMATA_LOG("task is invalid"), nullptr)}
+        _work(task ? task : (NIMATA_LOG("task is invalid"), nullptr))
       {
         NIMATA_LOG("thread spawned");
       }
@@ -274,7 +275,7 @@ namespace Nimata
     ~Pool() noexcept;
 
     template<typename F, typename... A>
-    NIMATA_NODISCARD_REASON("push: consider wrapping in a lambda if you don't use the return value")
+    NIMATA_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value")
     inline // add work that has a return value to queue
     auto push(F function, A... arguments) noexcept -> std::future<_backend::_if_type<decltype(function(arguments...))>>;
 
@@ -290,17 +291,17 @@ namespace Nimata
   private:
     static inline unsigned _compute_number_of_threads(signed N) noexcept;
     inline void _async_assign() noexcept;
-    std::atomic<bool>                 _active = {true};
-    unsigned                          _n_workers;
-    _backend::_worker*                _workers;
-    std::mutex                        _queue_mtx;
-    std::queue<std::function<void()>> _queue;
-    std::thread                       _assignation_thread{_async_assign, this};
+    std::atomic<bool>                    _active = {true};
+    unsigned                             _n_workers;
+    std::unique_ptr<_backend::_worker[]> _workers;
+    std::mutex                           _queue_mtx;
+    std::queue<std::function<void()>>    _queue;
+    std::thread                          _assignation_thread{_async_assign, this};
   };
 //---Nimata library: frontend definitions-------------------------------------------------------------------------------
   Pool::Pool(signed N) noexcept :
-    _n_workers{_compute_number_of_threads(N)},
-    _workers{new _backend::_worker[_n_workers]}
+    _n_workers(_compute_number_of_threads(N)),
+    _workers(new _backend::_worker[_n_workers])
   {
     NIMATA_LOG("%u thread%s aquired", _n_workers, _n_workers == 1 ? "" : "s");
   }
@@ -311,8 +312,6 @@ namespace Nimata
 
     _active = false;
     _assignation_thread.join();
-
-    delete[] _workers;
 
     NIMATA_LOG("all workers killed");
   }
@@ -330,17 +329,14 @@ namespace Nimata
       
       future = promise->get_future();
       
+      std::lock_guard<std::mutex>{_queue_mtx}, _queue.push([=]
       {
-        std::lock_guard<std::mutex> lock{_queue_mtx};
-        _queue.push([=]{
-          promise->set_value(function(arguments...));
-          delete promise;
-        });
-      }
+        std::unique_ptr<std::promise<R>>(promise)->set_value(function(arguments...));
+      });
 
       NIMATA_LOG("pushed a task with return value");
     }
-    else NIMATA_LOG("invalid task pushed");
+    else NIMATA_LOG("null task pushed");
 
     return future;
   }
@@ -349,17 +345,15 @@ namespace Nimata
   auto Pool::push(F function, A... arguments) noexcept -> _backend::_if_void<decltype(function(arguments...))>
   {
     if (function) NIMATA_HOT
-    {      
+    {
+      std::lock_guard<std::mutex>{_queue_mtx}, _queue.push([=]
       {
-        std::lock_guard<std::mutex> lock{_queue_mtx};
-        _queue.push([=]{
-          function(arguments...);
-        });
-      }
+        function(arguments...);
+      });
 
       NIMATA_LOG("pushed a task with no return value");
     }
-    else NIMATA_LOG("invalid task pushed");
+    else NIMATA_LOG("null task pushed");
 
     return;
   }
