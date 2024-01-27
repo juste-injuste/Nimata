@@ -11,7 +11,6 @@ Nimata is a simple and lightweight C++11 (and newer) library that offers multith
 
 Nimata offers the following:
 * [Pool](#Pool) to create thread pools
-* [Queue](#Queue) is a thread-safe FIFO data structure
 * [NIMATA_CYCLIC](#NIMATA_CYCLIC) to periodically call code blocks
 * `MAX_THREADS` is the hardware thread concurency
 ---
