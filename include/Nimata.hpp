@@ -343,11 +343,11 @@ namespace Nimata
     // query amount of workers
     auto size() const noexcept -> unsigned { return _n_workers; }
 
-   //
-   void start() noexcept { _active = true;  }
+    //
+    void work() noexcept { _active = true;  }
 
-   //
-   void stop()  noexcept { _active = false; }
+    //
+    void stop()  noexcept { _active = false; }
   private:
     static inline unsigned _compute_number_of_threads(signed N) noexcept;
     inline void _async_assign() noexcept;

@@ -32,7 +32,7 @@ void threadpool_demo()
   static unsigned iterations = 0;
   using namespace std::chrono;
   Nimata::Pool pool;
-  pool.start();
+  pool.work();
 
   work_count = 0;
   std::cout << "\033[H\033[J";
