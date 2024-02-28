@@ -149,10 +149,10 @@ namespace Nimata
     static thread_local char _log_buffer[256];
     static std::mutex _log_mtx;
     
-#   define _mtz_impl_LOG(...)                                                   \
-      [&](const char* caller){                                               \
-        std::sprintf(_backend::_log_buffer, __VA_ARGS__);                    \
-        std::lock_guard<std::mutex> _lock{_backend::_log_mtx};               \
+#   define _mtz_impl_LOG(...)                                             \
+      [&](const char* caller){                                            \
+        std::sprintf(_backend::_log_buffer, __VA_ARGS__);                 \
+        std::lock_guard<std::mutex> _lock{_backend::_log_mtx};            \
         _io::log << caller << ": " << _backend::_log_buffer << std::endl; \
       }(__func__)
 # else
@@ -230,6 +230,7 @@ namespace Nimata
       {
         return _work_available;
       }
+
     private:
       void _loop()
       {
@@ -253,7 +254,7 @@ namespace Nimata
     template<Period period>
     class _cyclicexecuter final
     {
-    static_assert(period >= 0, "NIMATA_CYCLIC: period must be greater than 0");
+      static_assert(period >= 0, "NIMATA_CYCLIC: period must be greater than 0");
     public:
       _cyclicexecuter(std::function<void()> task) noexcept :
         _work(task ? task : (_mtz_impl_LOG("task is invalid"), nullptr))
@@ -277,7 +278,6 @@ namespace Nimata
     };
     
     template<Period period>
-    inline
     void _cyclicexecuter<period>::_loop()
     {
       if (_work)
@@ -487,10 +487,10 @@ namespace Nimata
   }
   
 # undef  NIMATA_CYCLIC
-# define NIMATA_CYCLIC(period_us)   _mtz_impl_CYCLIC_PROX(__LINE__, period_us)
-# define _mtz_impl_CYCLIC_PROX(...) _mtz_impl_CYCLIC_IMPL(__VA_ARGS__)
-# define _mtz_impl_CYCLIC_IMPL(line, period_us)                                                   \
-    Nimata::_backend::_cyclicexecuter<period_us> cyclic_worker_##line = (std::function<void()>)[&]
+# define NIMATA_CYCLIC(period_us)                      _mtz_impl_CYCLIC_PROX(__LINE__,    period_us)
+# define _mtz_impl_CYCLIC_PROX(line_number, period_us) _mtz_impl_CYCLIC_IMPL(line_number, period_us)
+# define _mtz_impl_CYCLIC_IMPL(line_number, period_us)                                                    \
+    Nimata::_backend::_cyclicexecuter<period_us> cyclic_worker_##line_number = (std::function<void()>)[&]
 
   inline namespace Literals
   {
