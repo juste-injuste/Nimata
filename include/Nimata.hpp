@@ -28,16 +28,18 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
------versions-----------------------------------------------------------------------------------------------------------
+-----_versions-----------------------------------------------------------------------------------------------------------
 
 -----description--------------------------------------------------------------------------------------------------------
 
+mtz::Pool;
+
 -----inclusion guard--------------------------------------------------------------------------------------------------*/
-#if not defined(NIMATA_HPP)
-#define NIMATA_HPP
+#ifndef _mtz_hpp
+#define _mtz_hpp
 #if defined(__cplusplus) and (__cplusplus >= 201103L)
 #if defined(__STDCPP_THREADS__)
-//---necessary libraries------------------------------------------------------------------------------------------------
+//---necessary standard libraries---------------------------------------------------------------------------------------
 #include <thread>     // for std::thread, std::this_thread::yield, std::this_thread::sleep_for
 #include <mutex>      // for std::mutex, std::lock_guard
 #include <atomic>     // for std::atomic
@@ -48,7 +50,7 @@ SOFTWARE.
 #include <ostream>    // for std::ostream
 #include <iostream>   // for std::clog
 #include <memory>     // for std::unique_ptr
-//---supplementary libraries--------------------------------------------------------------------------------------------
+//---conditionally necessary standard libraries-------------------------------------------------------------------------
 #if defined(NIMATA_LOGGING)
 # include <cstdio>    // for std::sprintf
 #endif
@@ -84,12 +86,12 @@ namespace Nimata
     Period operator""_kHz(unsigned long long frequency);
   }
 
-  namespace Global
+  namespace _io
   {
-    static std::ostream log{std::clog.rdbuf()}; // logging ostream
+    static std::ostream log(std::clog.rdbuf()); // logging ostream
   }
 
-  namespace Version
+  namespace _version
   {
     constexpr long MAJOR  = 000;
     constexpr long MINOR  = 001;
@@ -100,62 +102,114 @@ namespace Nimata
   namespace _backend
   {
 # if defined(__clang__)
-#   define NIMATA_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
-#   define NIMATA_CLANG_IGNORE(WARNING, ...)          \
-      NIMATA_PRAGMA(clang diagnostic push)            \
-      NIMATA_PRAGMA(clang diagnostic ignored WARNING) \
+#   define _mtz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
+#   define _mtz_impl_IGNORE(WARNING, ...)          \
+      _mtz_impl_PRAGMA(clang diagnostic push)            \
+      _mtz_impl_PRAGMA(clang diagnostic ignored WARNING) \
       __VA_ARGS__                                     \
-      NIMATA_PRAGMA(clang diagnostic pop)
+      _mtz_impl_PRAGMA(clang diagnostic pop)
 # endif
 
 // support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
 # if __cplusplus < 202002L
-#   define NIMATA_HOT NIMATA_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
+#   define _mtz_impl_HOT _mtz_impl_IGNORE("-Wc++20-extensions", [[likely]])
 # else
-#   define NIMATA_HOT [[likely]]
+#   define _mtz_impl_HOT [[likely]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define NIMATA_HOT [[likely]]
+#   define _mtz_impl_HOT [[likely]]
 # else
-#   define NIMATA_HOT
+#   define _mtz_impl_HOT
 # endif
 
 // support from clang 3.9.0 and GCC 5.1 onward
 # if defined(__clang__)
-#   define NIMATA_NODISCARD __attribute__((warn_unused_result))
+#   define _mtz_impl_NODISCARD __attribute__((warn_unused_result))
 # elif defined(__GNUC__)
-#   define NIMATA_NODISCARD __attribute__((warn_unused_result))
+#   define _mtz_impl_NODISCARD __attribute__((warn_unused_result))
 # else
-#   define NIMATA_NODISCARD
+#   define _mtz_impl_NODISCARD
 # endif
 
 // support from clang 10.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 10)
 # if __cplusplus < 202002L
-#   define NIMATA_NODISCARD_REASON(REASON) NIMATA_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
+#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
 # else
-#   define NIMATA_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define NIMATA_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # else
-#   define NIMATA_NODISCARD_REASON(REASON) NIMATA_NODISCARD
+#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_NODISCARD
 # endif
 
 # if defined(NIMATA_LOGGING)
     static thread_local char _log_buffer[256];
     static std::mutex _log_mtx;
     
-#   define NIMATA_LOG(...)                                                   \
+#   define _mtz_impl_LOG(...)                                                   \
       [&](const char* caller){                                               \
         std::sprintf(_backend::_log_buffer, __VA_ARGS__);                    \
         std::lock_guard<std::mutex> _lock{_backend::_log_mtx};               \
-        Global::log << caller << ": " << _backend::_log_buffer << std::endl; \
+        _io::log << caller << ": " << _backend::_log_buffer << std::endl; \
       }(__func__)
 # else
-#   define NIMATA_LOG(...) void(0)
+#   define _mtz_impl_LOG(...) void(0)
 # endif
+
+    using _work_t = std::function<void()>;
+    // using _work_t = void(*)();
+    
+    // template <typename L, typename = void>
+    // struct _is_work_t final :
+    //   public std::false_type
+    // {};
+
+    // template <typename L>
+    // struct _is_work_t<L, decltype(static_cast<_work_t>(std::declval<L>()), void())> final :
+    //   public std::true_type
+    // {};
+
+    // template<typename L, typename T>
+    // using _if_is_work_t = typename std::enable_if<_is_work_t<L>::value == true, T>::type;
+
+    // template<typename L, typename T>
+    // using _if_no_work_t = typename std::enable_if<_is_work_t<L>::value != true, T>::type;
+
+    // template<typename L>
+    // inline
+    // auto _as_work_t(L lambda) noexcept -> _if_is_work_t<L, _work_t>
+    // {
+    //   std::cout << "_action!\n";
+
+    //   return static_cast<_work_t>(lambda);
+    // }
+
+    // template<typename L>
+    // inline
+    // auto _as_work_t(L&& lambda) noexcept -> _if_no_work_t<L, _work_t>
+    // {
+    //   // std::cout << "generic!\n";
+
+    //   static auto action = std::move(lambda);
+
+    //   return []{ action(); };
+    // }
+
+    // inline
+    // _work_t _as_work_t(std::function<void()>&& function) noexcept
+    // {
+    //   // std::cout << "function, ";
+
+    //   if (function == nullptr)
+    //   {
+    //     return []{};
+    //   }
+      
+    //   return _as_work_t([function]{ function(); });
+    // }
 
     class _worker final
     {
@@ -166,9 +220,9 @@ namespace Nimata
         _worker_thread.join();
       }
 
-      void _task(std::function<void()>&& task) noexcept
+      void _task(_work_t task) noexcept
       {
-        _work = std::move(task);
+        _work = task;
         _work_available = true;
       }
 
@@ -179,9 +233,9 @@ namespace Nimata
     private:
       void _loop()
       {
-        while (_alive) NIMATA_HOT
+        while (_alive) _mtz_impl_HOT
         {
-          if (_work_available) NIMATA_HOT
+          if (_work_available) _mtz_impl_HOT
           {
             _work();
             _work_available = false;
@@ -190,10 +244,10 @@ namespace Nimata
           std::this_thread::yield();
         }
       }
-      volatile bool         _alive          = true;
-      std::function<void()> _work           = nullptr;
-      std::atomic<bool>     _work_available = {false};
-      std::thread           _worker_thread{_loop, this};
+      volatile bool     _alive          = true;
+      _work_t           _work           = nullptr;
+      std::atomic<bool> _work_available = {false};
+      std::thread       _worker_thread{_loop, this};
     };
 
     template<Period period>
@@ -202,9 +256,9 @@ namespace Nimata
     static_assert(period >= 0, "NIMATA_CYCLIC: period must be greater than 0");
     public:
       _cyclicexecuter(std::function<void()> task) noexcept :
-        _work(task ? task : (NIMATA_LOG("task is invalid"), nullptr))
+        _work(task ? task : (_mtz_impl_LOG("task is invalid"), nullptr))
       {
-        NIMATA_LOG("thread spawned");
+        _mtz_impl_LOG("thread spawned");
       }
 
       _cyclicexecuter(const _cyclicexecuter&) noexcept {}
@@ -213,7 +267,7 @@ namespace Nimata
       {
         _alive = false;
         _worker_thread.join();
-        NIMATA_LOG("thread joined");
+        _mtz_impl_LOG("thread joined");
       }
     private:
       inline void _loop();
@@ -275,7 +329,7 @@ namespace Nimata
     ~Pool() noexcept;
 
     template<typename F, typename... A>
-    NIMATA_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value")
+    _mtz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value")
     inline // add work that has a return value to queue
     auto push(F function, A... arguments) noexcept -> std::future<_backend::_if_type<decltype(function(arguments...))>>;
 
@@ -288,14 +342,21 @@ namespace Nimata
 
     // query amount of workers
     auto size() const noexcept -> unsigned { return _n_workers; }
+
+   //
+   void start() noexcept { _active = true;  }
+
+   //
+   void stop()  noexcept { _active = false; }
   private:
     static inline unsigned _compute_number_of_threads(signed N) noexcept;
     inline void _async_assign() noexcept;
+    std::atomic<bool>                    _alive  = {true};
     std::atomic<bool>                    _active = {true};
     unsigned                             _n_workers;
     std::unique_ptr<_backend::_worker[]> _workers;
     std::mutex                           _queue_mtx;
-    std::queue<std::function<void()>>    _queue;
+    std::queue<_backend::_work_t>        _queue;
     std::thread                          _assignation_thread{_async_assign, this};
   };
 //---Nimata library: frontend definitions-------------------------------------------------------------------------------
@@ -303,17 +364,17 @@ namespace Nimata
     _n_workers(_compute_number_of_threads(N)),
     _workers(new _backend::_worker[_n_workers])
   {
-    NIMATA_LOG("%u thread%s aquired", _n_workers, _n_workers == 1 ? "" : "s");
+    _mtz_impl_LOG("%u thread%s aquired", _n_workers, _n_workers == 1 ? "" : "s");
   }
 
   Pool::~Pool() noexcept
   {
     wait();
 
-    _active = false;
+    _alive = false;
     _assignation_thread.join();
 
-    NIMATA_LOG("all workers killed");
+    _mtz_impl_LOG("all workers killed");
   }
   
   template<typename F, typename... A>
@@ -323,20 +384,22 @@ namespace Nimata
 
     std::future<R> future;
 
-    if (function) NIMATA_HOT
+    if (function) _mtz_impl_HOT
     {
-      std::promise<R>* promise = new std::promise<R>;
+      auto promise = new std::promise<R>;
       
       future = promise->get_future();
       
-      std::lock_guard<std::mutex>{_queue_mtx}, _queue.push([=]
-      {
-        std::unique_ptr<std::promise<R>>(promise)->set_value(function(arguments...));
-      });
+      std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
+        // _backend::_as_work_t
+        (
+          [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function(arguments...)); }
+        )
+      );
 
-      NIMATA_LOG("pushed a task with return value");
+      _mtz_impl_LOG("pushed a task with return value");
     }
-    else NIMATA_LOG("null task pushed");
+    else _mtz_impl_LOG("null task pushed");
 
     return future;
   }
@@ -344,53 +407,59 @@ namespace Nimata
   template<typename F, typename... A>
   auto Pool::push(F function, A... arguments) noexcept -> _backend::_if_void<decltype(function(arguments...))>
   {
-    if (function) NIMATA_HOT
+    if (function) _mtz_impl_HOT
     {
-      std::lock_guard<std::mutex>{_queue_mtx}, _queue.push([=]
-      {
-        function(arguments...);
-      });
+      std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
+        // _backend::_as_work_t
+        (
+          [=]{ function(arguments...); }
+        )
+      );
 
-      NIMATA_LOG("pushed a task with no return value");
+      _mtz_impl_LOG("pushed a task with no return value");
     }
-    else NIMATA_LOG("null task pushed");
+    else _mtz_impl_LOG("null task pushed");
 
     return;
   }
 
   void Pool::wait() const noexcept
   {
-    while (_queue.empty() == false)
+    if (_active == true)
     {
-      std::this_thread::sleep_for(std::chrono::microseconds{1});
-    };
-
-    for (unsigned k = 0; k < _n_workers; ++k)
-    {
-      while (_workers[k]._busy())
+      while (not _queue.empty())
       {
         std::this_thread::sleep_for(std::chrono::microseconds{1});
-      }
-    }
+      };
 
-    NIMATA_LOG("all threads finished their work");
+      for (unsigned k = 0; k < _n_workers; ++k)
+      {
+        while (_workers[k]._busy())
+        {
+          std::this_thread::sleep_for(std::chrono::microseconds{1});
+        }
+      }
+
+      _mtz_impl_LOG("all threads finished their work");
+    }
   }
 
   void Pool::_async_assign() noexcept
   {
-    while (_active)
+    while (_alive)
     {
+      if (not _active) continue;
+
       for (unsigned k = 0; k < _n_workers; ++k)
       {
-        if (_workers[k]._busy() == false)
+        if (_workers[k]._busy()) continue;
+
+        std::lock_guard<std::mutex> lock{_queue_mtx};
+        if (_queue.empty() == false)
         {
-          std::lock_guard<std::mutex> lock{_queue_mtx};
-          if (_queue.empty() == false)
-          {
-            _workers[k]._task(std::move(_queue.front()));
-            _queue.pop();
-            NIMATA_LOG("assigned to worker thread #%02u", k);
-          }
+          _workers[k]._task(std::move(_queue.front()));
+          _queue.pop();
+          _mtz_impl_LOG("assigned to worker thread #%02u", k);
         }
       }
     }
@@ -405,22 +474,22 @@ namespace Nimata
     
     if (N < 1)
     {
-      NIMATA_LOG("%d threads is not possible, 1 used instead", N);
+      _mtz_impl_LOG("%d threads is not possible, 1 used instead", N);
       N = 1;
     }
 
     if (N > static_cast<signed>(MAX_THREADS - 2))
     {
-      NIMATA_LOG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N);
+      _mtz_impl_LOG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N);
     }
     
     return static_cast<unsigned>(N);
   }
   
 # undef  NIMATA_CYCLIC
-# define NIMATA_CYCLIC(period_us) NIMATA_CYCLIC_PROX(__LINE__, period_us)
-# define NIMATA_CYCLIC_PROX(...)  NIMATA_CYCLIC_IMPL(__VA_ARGS__)
-# define NIMATA_CYCLIC_IMPL(line, period_us)                                                       \
+# define NIMATA_CYCLIC(period_us)   _mtz_impl_CYCLIC_PROX(__LINE__, period_us)
+# define _mtz_impl_CYCLIC_PROX(...) _mtz_impl_CYCLIC_IMPL(__VA_ARGS__)
+# define _mtz_impl_CYCLIC_IMPL(line, period_us)                                                   \
     Nimata::_backend::_cyclicexecuter<period_us> cyclic_worker_##line = (std::function<void()>)[&]
 
   inline namespace Literals
@@ -462,12 +531,12 @@ namespace Nimata
     }
   }
 //----------------------------------------------------------------------------------------------------------------------
-# undef NIMATA_PRAGMA
-# undef NIMATA_CLANG_IGNORE
-# undef NIMATA_HOT
-# undef NIMATA_NODISCARD
-# undef NIMATA_NODISCARD_REASON
-# undef NIMATA_LOG
+# undef _mtz_impl_PRAGMA
+# undef _mtz_impl_IGNORE
+# undef _mtz_impl_HOT
+# undef _mtz_impl_NODISCARD
+# undef _mtz_impl_NODISCARD_REASON
+# undef _mtz_impl_LOG
 }
 #else
 #error "Nimata: Concurrent threads are required"
