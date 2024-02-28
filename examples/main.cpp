@@ -2,7 +2,7 @@
 #include <iostream>
 #include <atomic>
 
-// #define NIMATA_LOGGING
+#define NIMATA_LOGGING
 #include "../include/Nimata.hpp"
 
 static std::atomic_uint work_count;
@@ -32,6 +32,7 @@ void threadpool_demo()
   static unsigned iterations = 0;
   using namespace std::chrono;
   Nimata::Pool pool;
+  pool.start();
 
   work_count = 0;
   std::cout << "\033[H\033[J";
@@ -88,6 +89,6 @@ int main()
   {
     threadpool_demo();
 
-    cyclic_demo();
+    // cyclic_demo();
   }
 }
