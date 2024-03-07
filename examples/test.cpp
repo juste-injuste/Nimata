@@ -2,7 +2,7 @@
 
 int test()
 {
-  Nimata::Pool pool(4);
+  mud::Pool pool(4);
 
   return 0;
 }

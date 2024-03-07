@@ -3,7 +3,7 @@
 #include <chrono>
 #include <iostream>
 
-Nimata::Pool pool(4);
+mud::Pool pool(4);
 
 void work()
 {

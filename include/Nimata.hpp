@@ -32,8 +32,6 @@ SOFTWARE.
 
 -----description--------------------------------------------------------------------------------------------------------
 
-mtz::Pool;
-
 -----inclusion guard--------------------------------------------------------------------------------------------------*/
 #ifndef _mtz_hpp
 #define _mtz_hpp
@@ -51,11 +49,11 @@ mtz::Pool;
 #include <iostream>   // for std::clog
 #include <memory>     // for std::unique_ptr
 //---conditionally necessary standard libraries-------------------------------------------------------------------------
-#if defined(NIMATA_LOGGING)
+#if defined(MUD_DEBUGGING)
 # include <cstdio>    // for std::sprintf
 #endif
 //---Nimata library-----------------------------------------------------------------------------------------------------
-namespace Nimata
+namespace mud
 {
   const unsigned MAX_THREADS = std::thread::hardware_concurrency();
 
@@ -63,32 +61,21 @@ namespace Nimata
 
   using Period = std::chrono::nanoseconds::rep;
 
-# define NIMATA_CYCLIC(period_us)
+# define MUD_CYCLIC(PERIOD)
 
   inline namespace Literals
   {
-    constexpr
-    Period operator""_mHz(long double frequency);
-
-    constexpr
-    Period operator""_mHz(unsigned long long frequency);
-
-    constexpr
-    Period operator""_Hz(long double frequency);
-
-    constexpr
-    Period operator""_Hz(unsigned long long frequency);
-
-    constexpr
-    Period operator""_kHz(long double frequency);
-
-    constexpr
-    Period operator""_kHz(unsigned long long frequency);
+    constexpr Period operator""_mHz(long double frequency);
+    constexpr Period operator""_mHz(unsigned long long frequency);
+    constexpr Period operator""_Hz(long double frequency);
+    constexpr Period operator""_Hz(unsigned long long frequency);
+    constexpr Period operator""_kHz(long double frequency);
+    constexpr Period operator""_kHz(unsigned long long frequency);
   }
 
   namespace _io
   {
-    static std::ostream log(std::clog.rdbuf()); // logging ostream
+    static std::ostream dbg(std::clog.rdbuf()); // debugging
   }
 
   namespace _version
@@ -99,64 +86,79 @@ namespace Nimata
     constexpr long NUMBER = (MAJOR * 1000 + MINOR) * 1000 + PATCH;
   }
 //---Nimata library: backend--------------------------------------------------------------------------------------------
-  namespace _backend
+  namespace _impl
   {
 # if defined(__clang__)
-#   define _mtz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
-#   define _mtz_impl_IGNORE(WARNING, ...)          \
-      _mtz_impl_PRAGMA(clang diagnostic push)            \
-      _mtz_impl_PRAGMA(clang diagnostic ignored WARNING) \
-      __VA_ARGS__                                     \
-      _mtz_impl_PRAGMA(clang diagnostic pop)
+#   define _mud_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
+#   define _mud_impl_CLANG_IGNORE(WARNING, ...)          \
+      _mud_impl_PRAGMA(clang diagnostic push)            \
+      _mud_impl_PRAGMA(clang diagnostic ignored WARNING) \
+      __VA_ARGS__                                        \
+      _mud_impl_PRAGMA(clang diagnostic pop)
 # endif
 
 // support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
 # if __cplusplus < 202002L
-#   define _mtz_impl_HOT _mtz_impl_IGNORE("-Wc++20-extensions", [[likely]])
+#   define _mud_impl_LIKELY _mud_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
 # else
-#   define _mtz_impl_HOT [[likely]]
+#   define _mud_impl_LIKELY [[likely]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _mtz_impl_HOT [[likely]]
+#   define _mud_impl_LIKELY [[likely]]
 # else
-#   define _mtz_impl_HOT
+#   define _mud_impl_LIKELY
+# endif
+
+// support from clang 3.9.0 and GCC 4.7.3 onward
+# if defined(__clang__)
+#   define _mud_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mud_impl_LIKELY
+# elif defined(__GNUC__)
+#   define _mud_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mud_impl_LIKELY
+# else
+#   define _mud_impl_EXPECTED(CONDITION) (CONDITION) _mud_impl_LIKELY
 # endif
 
 // support from clang 3.9.0 and GCC 5.1 onward
 # if defined(__clang__)
-#   define _mtz_impl_NODISCARD __attribute__((warn_unused_result))
+#   define _mud_impl_NODISCARD __attribute__((warn_unused_result))
 # elif defined(__GNUC__)
-#   define _mtz_impl_NODISCARD __attribute__((warn_unused_result))
+#   define _mud_impl_NODISCARD __attribute__((warn_unused_result))
 # else
-#   define _mtz_impl_NODISCARD
+#   define _mud_impl_NODISCARD
 # endif
 
 // support from clang 10.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 10)
 # if __cplusplus < 202002L
-#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
+#   define _mud_impl_NODISCARD_REASON(REASON) _mud_impl_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
 # else
-#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _mud_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _mud_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # else
-#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_NODISCARD
+#   define _mud_impl_NODISCARD_REASON(REASON) _mud_impl_NODISCARD
 # endif
 
-# if defined(NIMATA_LOGGING)
-    static thread_local char _log_buffer[256];
-    static std::mutex _log_mtx;
+# if defined(MUD_DEBUGGING)
+    static thread_local char _dbg_buffer[256];
+    static std::mutex _dbg_mtx;
     
-#   define _mtz_impl_LOG(...)                                             \
-      [&](const char* caller){                                            \
-        std::sprintf(_backend::_log_buffer, __VA_ARGS__);                 \
-        std::lock_guard<std::mutex> _lock{_backend::_log_mtx};            \
-        _io::log << caller << ": " << _backend::_log_buffer << std::endl; \
+#   define _mud_impl_DEBUG(...)                                        \
+      [&](const char* caller){                                         \
+        std::sprintf(_impl::_dbg_buffer, __VA_ARGS__);                 \
+        std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};            \
+        _io::dbg << caller << ": " << _impl::_dbg_buffer << std::endl; \
       }(__func__)
 # else
-#   define _mtz_impl_LOG(...) void(0)
+#   define _mud_impl_DEBUG(...) void(0)
+# endif
+
+# if __cplusplus >= 201402L
+#   define _mud_impl_CONSTEXPR_CPP14 constexpr
+# else
+#   define _mud_impl_CONSTEXPR_CPP14
 # endif
 
     using _work_t = std::function<void()>;
@@ -220,9 +222,9 @@ namespace Nimata
         _worker_thread.join();
       }
 
-      void _task(_work_t task) noexcept
+      void _task(_work_t task_) noexcept
       {
-        _work = task;
+        _work = task_;
         _work_available = true;
       }
 
@@ -234,9 +236,9 @@ namespace Nimata
     private:
       void _loop()
       {
-        while (_alive) _mtz_impl_HOT
+        while _mud_impl_EXPECTED(_alive)
         {
-          if (_work_available) _mtz_impl_HOT
+          if _mud_impl_EXPECTED(_work_available)
           {
             _work();
             _work_available = false;
@@ -254,12 +256,12 @@ namespace Nimata
     template<Period period>
     class _cyclicexecuter final
     {
-      static_assert(period >= 0, "NIMATA_CYCLIC: period must be greater than 0");
+      static_assert(period >= 0, "MUD_CYCLIC: period must be greater than 0");
     public:
-      _cyclicexecuter(std::function<void()> task) noexcept :
-        _work(task ? task : (_mtz_impl_LOG("task is invalid"), nullptr))
+      _cyclicexecuter(_work_t task) noexcept :
+        _work(task ? task : (_mud_impl_DEBUG("task is invalid"), nullptr))
       {
-        _mtz_impl_LOG("thread spawned");
+        _mud_impl_DEBUG("thread spawned");
       }
 
       _cyclicexecuter(const _cyclicexecuter&) noexcept {}
@@ -268,13 +270,13 @@ namespace Nimata
       {
         _alive = false;
         _worker_thread.join();
-        _mtz_impl_LOG("thread joined");
+        _mud_impl_DEBUG("thread joined");
       }
     private:
       inline void _loop();
-      volatile bool         _alive = true;
-      std::function<void()> _work;
-      std::thread           _worker_thread{_loop, this};
+      volatile bool _alive = true;
+      _work_t       _work;
+      std::thread   _worker_thread{_loop, this};
     };
     
     template<Period period>
@@ -315,8 +317,11 @@ namespace Nimata
     template<typename T>
     using _if_type = typename std::enable_if<not std::is_same<T, void>::value, T>::type;
 
-    template<typename T>
-    using _if_void = typename std::enable_if<std::is_same<T, void>::value, T>::type;
+    template<typename F, typename... A>
+    using _void = typename std::enable_if<std::is_same<decltype(F()(A()...)), void>::value, void>::type;
+
+    template<typename F, typename... A>
+    using _future = std::future<_impl::_if_type<decltype(F()(A()...))>>;
   }
 //---Nimata library: frontend struct and class definitions--------------------------------------------------------------
   class Pool final
@@ -329,13 +334,13 @@ namespace Nimata
     ~Pool() noexcept;
 
     template<typename F, typename... A>
-    _mtz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value")
+    _mud_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value")
     inline // add work that has a return value to queue
-    auto push(F function, A... arguments) noexcept -> std::future<_backend::_if_type<decltype(function(arguments...))>>;
+    auto push(F function, A... arguments) noexcept -> _impl::_future<F, A...>;
 
     template<typename F, typename... A>
     inline // add work that does not have a return value to queue
-    auto push(F function, A... arguments) noexcept -> _backend::_if_void<decltype(function(arguments...))>;
+    auto push(F function, A... arguments) noexcept -> _impl::_void<F, A...>;
 
     inline // waits for all work to be done
     void wait() const noexcept;
@@ -349,22 +354,22 @@ namespace Nimata
     //
     void stop()  noexcept { _active = false; }
   private:
-    static inline unsigned _compute_number_of_threads(signed N) noexcept;
+    static inline _mud_impl_CONSTEXPR_CPP14 auto _compute_number_of_threads(signed N) noexcept -> unsigned;
     inline void _async_assign() noexcept;
-    std::atomic<bool>                    _alive  = {true};
-    std::atomic<bool>                    _active = {true};
-    unsigned                             _n_workers;
-    std::unique_ptr<_backend::_worker[]> _workers;
-    std::mutex                           _queue_mtx;
-    std::queue<_backend::_work_t>        _queue;
-    std::thread                          _assignation_thread{_async_assign, this};
+    std::atomic<bool>                 _alive  = {true};
+    std::atomic<bool>                 _active = {true};
+    unsigned                          _n_workers;
+    std::unique_ptr<_impl::_worker[]> _workers;
+    std::mutex                        _queue_mtx;
+    std::queue<_impl::_work_t>        _queue;
+    std::thread                       _assignation_thread{_async_assign, this};
   };
 //---Nimata library: frontend definitions-------------------------------------------------------------------------------
-  Pool::Pool(signed N) noexcept :
-    _n_workers(_compute_number_of_threads(N)),
-    _workers(new _backend::_worker[_n_workers])
+  Pool::Pool(signed N_) noexcept :
+    _n_workers(_compute_number_of_threads(N_)),
+    _workers(new _impl::_worker[_n_workers])
   {
-    _mtz_impl_LOG("%u thread%s aquired", _n_workers, _n_workers == 1 ? "" : "s");
+    _mud_impl_DEBUG("%u thread%s aquired", _n_workers, _n_workers == 1 ? "" : "s");
   }
 
   Pool::~Pool() noexcept
@@ -374,51 +379,51 @@ namespace Nimata
     _alive = false;
     _assignation_thread.join();
 
-    _mtz_impl_LOG("all workers killed");
+    _mud_impl_DEBUG("all workers killed");
   }
   
   template<typename F, typename... A>
-  auto Pool::push(F function, A... arguments) noexcept -> std::future<_backend::_if_type<decltype(function(arguments...))>>
+  auto Pool::push(F function_, A... arguments_) noexcept -> _impl::_future<F, A...>
   {
-    using R = decltype(function(arguments...));
+    using R = decltype(function_(arguments_...));
 
     std::future<R> future;
 
-    if (function) _mtz_impl_HOT
+    if _mud_impl_EXPECTED(function_)
     {
       auto promise = new std::promise<R>;
       
       future = promise->get_future();
       
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
-        // _backend::_as_work_t
+        // _impl::_as_work_t
         (
-          [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function(arguments...)); }
+          [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function_(arguments_...)); }
         )
       );
 
-      _mtz_impl_LOG("pushed a task with return value");
+      _mud_impl_DEBUG("pushed a task with return value");
     }
-    else _mtz_impl_LOG("null task pushed");
+    else _mud_impl_DEBUG("null task pushed");
 
     return future;
   }
   
   template<typename F, typename... A>
-  auto Pool::push(F function, A... arguments) noexcept -> _backend::_if_void<decltype(function(arguments...))>
+  auto Pool::push(F function_, A... arguments_) noexcept -> _impl::_void<F, A...>
   {
-    if (function) _mtz_impl_HOT
+    if _mud_impl_EXPECTED(function_)
     {
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
-        // _backend::_as_work_t
+        // _impl::_as_work_t
         (
-          [=]{ function(arguments...); }
+          [=]{ function_(arguments_...); }
         )
       );
 
-      _mtz_impl_LOG("pushed a task with no return value");
+      _mud_impl_DEBUG("pushed a task with no return value");
     }
-    else _mtz_impl_LOG("null task pushed");
+    else _mud_impl_DEBUG("null task pushed");
 
     return;
   }
@@ -427,7 +432,7 @@ namespace Nimata
   {
     if (_active == true)
     {
-      while (not _queue.empty())
+      while (_queue.empty() == false)
       {
         std::this_thread::sleep_for(std::chrono::microseconds{1});
       };
@@ -440,7 +445,7 @@ namespace Nimata
         }
       }
 
-      _mtz_impl_LOG("all threads finished their work");
+      _mud_impl_DEBUG("all threads finished their work");
     }
   }
 
@@ -448,7 +453,7 @@ namespace Nimata
   {
     while (_alive)
     {
-      if (not _active) continue;
+      if (_active == false) continue;
 
       for (unsigned k = 0; k < _n_workers; ++k)
       {
@@ -459,89 +464,92 @@ namespace Nimata
         {
           _workers[k]._task(std::move(_queue.front()));
           _queue.pop();
-          _mtz_impl_LOG("assigned to worker thread #%02u", k);
+          _mud_impl_DEBUG("assigned to worker thread #%02u", k);
         }
       }
     }
   }
 
-  unsigned Pool::_compute_number_of_threads(signed N) noexcept
+  _mud_impl_CONSTEXPR_CPP14
+  auto Pool::_compute_number_of_threads(signed N_) noexcept -> unsigned
   {
-    if (N <= 0)
+    if (N_ <= 0)
     {
-      N += MAX_THREADS;
+      N_ += MAX_THREADS;
     }
     
-    if (N < 1)
+    if (N_ < 1)
     {
-      _mtz_impl_LOG("%d threads is not possible, 1 used instead", N);
-      N = 1;
+      _mud_impl_DEBUG("%d threads is not possible, 1 used instead", N_);
+      N_ = 1;
     }
 
-    if (N > static_cast<signed>(MAX_THREADS - 2))
+    if (N_ > static_cast<signed>(MAX_THREADS - 2))
     {
-      _mtz_impl_LOG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N);
+      _mud_impl_DEBUG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
     }
     
-    return static_cast<unsigned>(N);
+    return static_cast<unsigned>(N_);
   }
   
-# undef  NIMATA_CYCLIC
-# define NIMATA_CYCLIC(period_us)                      _mtz_impl_CYCLIC_PROX(__LINE__,    period_us)
-# define _mtz_impl_CYCLIC_PROX(line_number, period_us) _mtz_impl_CYCLIC_IMPL(line_number, period_us)
-# define _mtz_impl_CYCLIC_IMPL(line_number, period_us)                                                    \
-    Nimata::_backend::_cyclicexecuter<period_us> cyclic_worker_##line_number = (std::function<void()>)[&]
+# undef  MUD_CYCLIC
+# define MUD_CYCLIC(PERIOD)                  _mud_impl_CYCLIC_PROX(__LINE__, PERIOD)
+# define _mud_impl_CYCLIC_PROX(LINE, PERIOD) _mud_impl_CYCLIC_IMPL(LINE,     PERIOD)
+# define _mud_impl_CYCLIC_IMPL(LINE, PERIOD)                                                  \
+    mud::_impl::_cyclicexecuter<PERIOD> cyclic_worker_##LINE = (mud::_impl::_work_t)[&]
 
   inline namespace Literals
   {
     constexpr
-    Period operator ""_mHz(long double frequency)
+    Period operator""_mHz(const long double frequency_)
     {
-      return static_cast<Period>(1000000000000/frequency);
+      return static_cast<Period>(1000000000000/frequency_);
     }
 
     constexpr
-    Period operator ""_mHz(unsigned long long frequency)
+    Period operator""_mHz(const unsigned long long frequency_)
     {
-      return 1000000000000/frequency;
+      return 1000000000000/frequency_;
     }
 
     constexpr
-    Period operator ""_Hz(long double frequency)
+    Period operator""_Hz(const long double frequency_)
     {
-      return static_cast<Period>(1000000000/frequency);
+      return static_cast<Period>(1000000000/frequency_);
     }
 
     constexpr
-    Period operator ""_Hz(unsigned long long frequency)
+    Period operator""_Hz(const unsigned long long frequency_)
     {
-      return 1000000000/frequency;
+      return 1000000000/frequency_;
     }
     
     constexpr
-    Period operator ""_kHz(long double frequency)
+    Period operator""_kHz(const long double frequency_)
     {
-      return static_cast<Period>(1000000/frequency);
+      return static_cast<Period>(1000000/frequency_);
     }
 
     constexpr
-    Period operator ""_kHz(unsigned long long frequency)
+    Period operator""_kHz(const unsigned long long frequency_)
     {
-      return 1000000/frequency;
+      return 1000000/frequency_;
     }
   }
 //----------------------------------------------------------------------------------------------------------------------
-# undef _mtz_impl_PRAGMA
-# undef _mtz_impl_IGNORE
-# undef _mtz_impl_HOT
-# undef _mtz_impl_NODISCARD
-# undef _mtz_impl_NODISCARD_REASON
-# undef _mtz_impl_LOG
+# undef _mud_impl_PRAGMA
+# undef _mud_impl_CLANG_IGNORE
+# undef _mud_impl_LIKELY
+# undef _mud_impl_EXPECTED
+# undef _mud_impl_NODISCARD
+# undef _mud_impl_NODISCARD_REASON
+# undef _mud_impl_DEBUG
+# undef _mud_impl_CONSTEXPR_CPP14
 }
 #else
-#error "Nimata: Concurrent threads are required"
+#error "mud: Concurrent threads are required"
 #endif
 #else
-#error "Nimata: Support for ISO C++11 is required"
+#error "mud: Support for ISO C++11 is required"
 #endif
 #endif

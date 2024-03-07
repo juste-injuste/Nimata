@@ -2,7 +2,7 @@
 #include <iostream>
 #include <atomic>
 
-#define NIMATA_LOGGING
+#define NIMATA_DEBUGGING
 #include "../include/Nimata.hpp"
 
 static std::atomic_uint work_count;
@@ -31,7 +31,7 @@ void threadpool_demo()
 {
   static unsigned iterations = 0;
   using namespace std::chrono;
-  Nimata::Pool pool;
+  mud::Pool pool;
   pool.work();
 
   work_count = 0;
@@ -47,7 +47,7 @@ void threadpool_demo()
   pool.wait();
   auto total_end     = steady_clock::now();
   auto total_elapsed = duration_cast<milliseconds>(total_end - total_start);
-  iterations++;
+  ++iterations;
   std::cout << "iteration:          " << iterations << '\n';
   std::cout << "total elapsed time: " << total_elapsed.count() << " ms\n";
   std::cout << "completed work:     " << work_count << '\n';
@@ -57,9 +57,9 @@ void threadpool_demo()
 
 void cyclic_demo()
 {
-  using namespace Nimata::Literals;
+  using namespace mud::Literals;
 
-  NIMATA_CYCLIC(1_Hz) // clear screen every second
+  MUD_CYCLIC(1_Hz) // clear screen every second
   {
     static unsigned frame = 0;
     std::cout << "\033[H\033[J";
@@ -70,12 +70,12 @@ void cyclic_demo()
 
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
-  NIMATA_CYCLIC(5_Hz)
+  MUD_CYCLIC(5_Hz)
   {
     std::cout << '='; // add 5 '=' to progress bar every second
   };
   
-  NIMATA_CYCLIC(25_Hz)
+  MUD_CYCLIC(25_Hz)
   {
     std::cout << '-'; // add 25 '-' to progress bar every second
   };
