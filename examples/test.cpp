@@ -2,7 +2,7 @@
 
 int test()
 {
-  mud::Pool pool(4);
+  mtz::Pool pool(4);
 
   return 0;
 }

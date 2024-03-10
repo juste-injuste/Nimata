@@ -3,7 +3,7 @@
 #include <chrono>
 #include <iostream>
 
-mud::Pool pool(4);
+mtz::Pool pool(4);
 
 void work()
 {

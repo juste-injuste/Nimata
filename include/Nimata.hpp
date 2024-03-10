@@ -33,8 +33,8 @@ SOFTWARE.
 -----description--------------------------------------------------------------------------------------------------------
 
 -----inclusion guard--------------------------------------------------------------------------------------------------*/
-#ifndef _mtz_hpp
-#define _mtz_hpp
+#ifndef _nimata_hpp
+#define _nimata_hpp
 #if defined(__cplusplus) and (__cplusplus >= 201103L)
 #if defined(__STDCPP_THREADS__)
 //---necessary standard libraries---------------------------------------------------------------------------------------
@@ -49,28 +49,26 @@ SOFTWARE.
 #include <iostream>   // for std::clog
 #include <memory>     // for std::unique_ptr
 //---conditionally necessary standard libraries-------------------------------------------------------------------------
-#if defined(MUD_DEBUGGING)
+#if defined(MTZ_DEBUGGING)
 # include <cstdio>    // for std::sprintf
 #endif
 //---Nimata library-----------------------------------------------------------------------------------------------------
-namespace mud
+namespace mtz
 {
   const unsigned MAX_THREADS = std::thread::hardware_concurrency();
 
   class Pool;
 
-  using Period = std::chrono::nanoseconds::rep;
+# define MTZ_CYCLIC(NS)
 
-# define MUD_CYCLIC(PERIOD)
-
-  inline namespace Literals
+  inline namespace _literals
   {
-    constexpr Period operator""_mHz(long double frequency);
-    constexpr Period operator""_mHz(unsigned long long frequency);
-    constexpr Period operator""_Hz(long double frequency);
-    constexpr Period operator""_Hz(unsigned long long frequency);
-    constexpr Period operator""_kHz(long double frequency);
-    constexpr Period operator""_kHz(unsigned long long frequency);
+    constexpr auto operator""_mHz(long double frequency)        -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_mHz(unsigned long long frequency) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_Hz(long double frequency)         -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_Hz(unsigned long long frequency)  -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_kHz(long double frequency)        -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_kHz(unsigned long long frequency) -> std::chrono::nanoseconds::rep;
   }
 
   namespace _io
@@ -89,76 +87,76 @@ namespace mud
   namespace _impl
   {
 # if defined(__clang__)
-#   define _mud_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
-#   define _mud_impl_CLANG_IGNORE(WARNING, ...)          \
-      _mud_impl_PRAGMA(clang diagnostic push)            \
-      _mud_impl_PRAGMA(clang diagnostic ignored WARNING) \
+#   define _mtz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
+#   define _mtz_impl_CLANG_IGNORE(WARNING, ...)          \
+      _mtz_impl_PRAGMA(clang diagnostic push)            \
+      _mtz_impl_PRAGMA(clang diagnostic ignored WARNING) \
       __VA_ARGS__                                        \
-      _mud_impl_PRAGMA(clang diagnostic pop)
+      _mtz_impl_PRAGMA(clang diagnostic pop)
 # endif
 
 // support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
 # if __cplusplus < 202002L
-#   define _mud_impl_LIKELY _mud_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
+#   define _mtz_impl_LIKELY _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
 # else
-#   define _mud_impl_LIKELY [[likely]]
+#   define _mtz_impl_LIKELY [[likely]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _mud_impl_LIKELY [[likely]]
+#   define _mtz_impl_LIKELY [[likely]]
 # else
-#   define _mud_impl_LIKELY
+#   define _mtz_impl_LIKELY
 # endif
 
 // support from clang 3.9.0 and GCC 4.7.3 onward
 # if defined(__clang__)
-#   define _mud_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mud_impl_LIKELY
+#   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
 # elif defined(__GNUC__)
-#   define _mud_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mud_impl_LIKELY
+#   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
 # else
-#   define _mud_impl_EXPECTED(CONDITION) (CONDITION) _mud_impl_LIKELY
+#   define _mtz_impl_EXPECTED(CONDITION) (CONDITION) _mtz_impl_LIKELY
 # endif
 
 // support from clang 3.9.0 and GCC 5.1 onward
 # if defined(__clang__)
-#   define _mud_impl_NODISCARD __attribute__((warn_unused_result))
+#   define _mtz_impl_NODISCARD __attribute__((warn_unused_result))
 # elif defined(__GNUC__)
-#   define _mud_impl_NODISCARD __attribute__((warn_unused_result))
+#   define _mtz_impl_NODISCARD __attribute__((warn_unused_result))
 # else
-#   define _mud_impl_NODISCARD
+#   define _mtz_impl_NODISCARD
 # endif
 
 // support from clang 10.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 10)
 # if __cplusplus < 202002L
-#   define _mud_impl_NODISCARD_REASON(REASON) _mud_impl_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
+#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
 # else
-#   define _mud_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _mud_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # else
-#   define _mud_impl_NODISCARD_REASON(REASON) _mud_impl_NODISCARD
+#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_NODISCARD
 # endif
 
-# if defined(MUD_DEBUGGING)
-    static thread_local char _dbg_buffer[256];
+# if defined(MTZ_DEBUGGING)
+    static thread_local char _dbg_buf[128];
     static std::mutex _dbg_mtx;
     
-#   define _mud_impl_DEBUG(...)                                        \
-      [&](const char* caller){                                         \
-        std::sprintf(_impl::_dbg_buffer, __VA_ARGS__);                 \
-        std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};            \
-        _io::dbg << caller << ": " << _impl::_dbg_buffer << std::endl; \
+#   define _mtz_impl_DEBUG(...)                                      \
+      [&](const char* const caller_){                                \
+        std::sprintf(_impl::_dbg_buf, __VA_ARGS__);                  \
+        std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};          \
+        _io::dbg << caller_ << ": " << _impl::_dbg_buf << std::endl; \
       }(__func__)
 # else
-#   define _mud_impl_DEBUG(...) void(0)
+#   define _mtz_impl_DEBUG(...) void(0)
 # endif
 
 # if __cplusplus >= 201402L
-#   define _mud_impl_CONSTEXPR_CPP14 constexpr
+#   define _mtz_impl_CONSTEXPR_CPP14 constexpr
 # else
-#   define _mud_impl_CONSTEXPR_CPP14
+#   define _mtz_impl_CONSTEXPR_CPP14
 # endif
 
     using _work_t = std::function<void()>;
@@ -236,9 +234,9 @@ namespace mud
     private:
       void _loop()
       {
-        while _mud_impl_EXPECTED(_alive)
+        while _mtz_impl_EXPECTED(_alive)
         {
-          if _mud_impl_EXPECTED(_work_available)
+          if _mtz_impl_EXPECTED(_work_available)
           {
             _work();
             _work_available = false;
@@ -253,24 +251,24 @@ namespace mud
       std::thread       _worker_thread{_loop, this};
     };
 
-    template<Period period>
-    class _cyclicexecuter final
+    template<std::chrono::nanoseconds::rep period>
+    class _cyclic final
     {
-      static_assert(period >= 0, "MUD_CYCLIC: period must be greater than 0");
+      static_assert(period >= 0, "MTZ_CYCLIC: period must be greater than 0");
     public:
-      _cyclicexecuter(_work_t task) noexcept :
-        _work(task ? task : (_mud_impl_DEBUG("task is invalid"), nullptr))
+      _cyclic(_work_t task) noexcept :
+        _work(task ? task : (_mtz_impl_DEBUG("task is invalid"), nullptr))
       {
-        _mud_impl_DEBUG("thread spawned");
+        _mtz_impl_DEBUG("thread spawned");
       }
 
-      _cyclicexecuter(const _cyclicexecuter&) noexcept {}
+      _cyclic(const _cyclic&) noexcept {}
 
-      ~_cyclicexecuter() noexcept
+      ~_cyclic() noexcept
       {
         _alive = false;
         _worker_thread.join();
-        _mud_impl_DEBUG("thread joined");
+        _mtz_impl_DEBUG("thread joined");
       }
     private:
       inline void _loop();
@@ -279,8 +277,8 @@ namespace mud
       std::thread   _worker_thread{_loop, this};
     };
     
-    template<Period period>
-    void _cyclicexecuter<period>::_loop()
+    template<std::chrono::nanoseconds::rep period>
+    void _cyclic<period>::_loop()
     {
       if (_work)
       {
@@ -303,7 +301,7 @@ namespace mud
 
     template<>
     inline
-    void _cyclicexecuter<0>::_loop()
+    void _cyclic<0>::_loop()
     {
       if (_work)
       {
@@ -334,7 +332,7 @@ namespace mud
     ~Pool() noexcept;
 
     template<typename F, typename... A>
-    _mud_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value")
+    _mtz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value")
     inline // add work that has a return value to queue
     auto push(F function, A... arguments) noexcept -> _impl::_future<F, A...>;
 
@@ -354,7 +352,7 @@ namespace mud
     //
     void stop()  noexcept { _active = false; }
   private:
-    static inline _mud_impl_CONSTEXPR_CPP14 auto _compute_number_of_threads(signed N) noexcept -> unsigned;
+    static inline _mtz_impl_CONSTEXPR_CPP14 auto _compute_number_of_threads(signed N) noexcept -> unsigned;
     inline void _async_assign() noexcept;
     std::atomic<bool>                 _alive  = {true};
     std::atomic<bool>                 _active = {true};
@@ -369,7 +367,7 @@ namespace mud
     _n_workers(_compute_number_of_threads(N_)),
     _workers(new _impl::_worker[_n_workers])
   {
-    _mud_impl_DEBUG("%u thread%s aquired", _n_workers, _n_workers == 1 ? "" : "s");
+    _mtz_impl_DEBUG("%u thread%s aquired", _n_workers, _n_workers == 1 ? "" : "s");
   }
 
   Pool::~Pool() noexcept
@@ -379,7 +377,7 @@ namespace mud
     _alive = false;
     _assignation_thread.join();
 
-    _mud_impl_DEBUG("all workers killed");
+    _mtz_impl_DEBUG("all workers killed");
   }
   
   template<typename F, typename... A>
@@ -389,7 +387,7 @@ namespace mud
 
     std::future<R> future;
 
-    if _mud_impl_EXPECTED(function_)
+    if _mtz_impl_EXPECTED(function_)
     {
       auto promise = new std::promise<R>;
       
@@ -402,9 +400,9 @@ namespace mud
         )
       );
 
-      _mud_impl_DEBUG("pushed a task with return value");
+      _mtz_impl_DEBUG("pushed a task with return value");
     }
-    else _mud_impl_DEBUG("null task pushed");
+    else _mtz_impl_DEBUG("null task pushed");
 
     return future;
   }
@@ -412,7 +410,7 @@ namespace mud
   template<typename F, typename... A>
   auto Pool::push(F function_, A... arguments_) noexcept -> _impl::_void<F, A...>
   {
-    if _mud_impl_EXPECTED(function_)
+    if _mtz_impl_EXPECTED(function_)
     {
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
         // _impl::_as_work_t
@@ -421,9 +419,9 @@ namespace mud
         )
       );
 
-      _mud_impl_DEBUG("pushed a task with no return value");
+      _mtz_impl_DEBUG("pushed a task with no return value");
     }
-    else _mud_impl_DEBUG("null task pushed");
+    else _mtz_impl_DEBUG("null task pushed");
 
     return;
   }
@@ -445,7 +443,7 @@ namespace mud
         }
       }
 
-      _mud_impl_DEBUG("all threads finished their work");
+      _mtz_impl_DEBUG("all threads finished their work");
     }
   }
 
@@ -464,13 +462,13 @@ namespace mud
         {
           _workers[k]._task(std::move(_queue.front()));
           _queue.pop();
-          _mud_impl_DEBUG("assigned to worker thread #%02u", k);
+          _mtz_impl_DEBUG("assigned to worker thread #%02u", k);
         }
       }
     }
   }
 
-  _mud_impl_CONSTEXPR_CPP14
+  _mtz_impl_CONSTEXPR_CPP14
   auto Pool::_compute_number_of_threads(signed N_) noexcept -> unsigned
   {
     if (N_ <= 0)
@@ -480,76 +478,76 @@ namespace mud
     
     if (N_ < 1)
     {
-      _mud_impl_DEBUG("%d threads is not possible, 1 used instead", N_);
+      _mtz_impl_DEBUG("%d threads is not possible, 1 used instead", N_);
       N_ = 1;
     }
 
     if (N_ > static_cast<signed>(MAX_THREADS - 2))
     {
-      _mud_impl_DEBUG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
+      _mtz_impl_DEBUG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
     }
     
     return static_cast<unsigned>(N_);
   }
   
-# undef  MUD_CYCLIC
-# define MUD_CYCLIC(PERIOD)                  _mud_impl_CYCLIC_PROX(__LINE__, PERIOD)
-# define _mud_impl_CYCLIC_PROX(LINE, PERIOD) _mud_impl_CYCLIC_IMPL(LINE,     PERIOD)
-# define _mud_impl_CYCLIC_IMPL(LINE, PERIOD)                                                  \
-    mud::_impl::_cyclicexecuter<PERIOD> cyclic_worker_##LINE = (mud::_impl::_work_t)[&]
+# undef  MTZ_CYCLIC
+# define MTZ_CYCLIC(NS)                  _mtz_impl_CYCLIC_PROX(__LINE__, NS)
+# define _mtz_impl_CYCLIC_PROX(LINE, NS) _mtz_impl_CYCLIC_IMPL(LINE,     NS)
+# define _mtz_impl_CYCLIC_IMPL(LINE, NS)                                      \
+    mtz::_impl::_cyclic<NS> _mtz_impl_cyclic##LINE = (mtz::_impl::_work_t)[&]
 
-  inline namespace Literals
+  inline namespace _literals
   {
     constexpr
-    Period operator""_mHz(const long double frequency_)
+    auto operator""_mHz(const long double freq_) -> std::chrono::nanoseconds::rep
     {
-      return static_cast<Period>(1000000000000/frequency_);
+      return static_cast<std::chrono::nanoseconds::rep>(1000000000000/freq_);
     }
 
     constexpr
-    Period operator""_mHz(const unsigned long long frequency_)
+    auto operator""_mHz(const unsigned long long freq_) -> std::chrono::nanoseconds::rep
     {
-      return 1000000000000/frequency_;
+      return static_cast<std::chrono::nanoseconds::rep>(1000000000000/freq_);
     }
 
     constexpr
-    Period operator""_Hz(const long double frequency_)
+    auto operator""_Hz(const long double freq_) -> std::chrono::nanoseconds::rep
     {
-      return static_cast<Period>(1000000000/frequency_);
+      return static_cast<std::chrono::nanoseconds::rep>(1000000000/freq_);
     }
 
     constexpr
-    Period operator""_Hz(const unsigned long long frequency_)
+    auto operator""_Hz(const unsigned long long freq_) -> std::chrono::nanoseconds::rep
     {
-      return 1000000000/frequency_;
+      return static_cast<std::chrono::nanoseconds::rep>(1000000000/freq_);
     }
     
     constexpr
-    Period operator""_kHz(const long double frequency_)
+    auto operator""_kHz(const long double freq_) -> std::chrono::nanoseconds::rep
     {
-      return static_cast<Period>(1000000/frequency_);
+      return static_cast<std::chrono::nanoseconds::rep>(1000000/freq_);
     }
 
     constexpr
-    Period operator""_kHz(const unsigned long long frequency_)
+    auto operator""_kHz(const unsigned long long freq_) -> std::chrono::nanoseconds::rep
     {
-      return 1000000/frequency_;
+      return static_cast<std::chrono::nanoseconds::rep>(1000000/freq_);
     }
   }
 //----------------------------------------------------------------------------------------------------------------------
-# undef _mud_impl_PRAGMA
-# undef _mud_impl_CLANG_IGNORE
-# undef _mud_impl_LIKELY
-# undef _mud_impl_EXPECTED
-# undef _mud_impl_NODISCARD
-# undef _mud_impl_NODISCARD_REASON
-# undef _mud_impl_DEBUG
-# undef _mud_impl_CONSTEXPR_CPP14
+# undef _mtz_impl_PRAGMA
+# undef _mtz_impl_CLANG_IGNORE
+# undef _mtz_impl_LIKELY
+# undef _mtz_impl_EXPECTED
+# undef _mtz_impl_NODISCARD
+# undef _mtz_impl_NODISCARD_REASON
+# undef _mtz_impl_DEBUG
+# undef _mtz_impl_CONSTEXPR_CPP14
 }
 #else
-#error "mud: Concurrent threads are required"
+#error "mtz: Concurrent threads are required"
 #endif
 #else
-#error "mud: Support for ISO C++11 is required"
+#error "mtz: Support for ISO C++11 is required"
 #endif
 #endif

@@ -31,7 +31,7 @@ void threadpool_demo()
 {
   static unsigned iterations = 0;
   using namespace std::chrono;
-  mud::Pool pool;
+  mtz::Pool pool;
   pool.work();
 
   work_count = 0;
@@ -57,9 +57,9 @@ void threadpool_demo()
 
 void cyclic_demo()
 {
-  using namespace mud::Literals;
+  using namespace mtz::_literals;
 
-  MUD_CYCLIC(1_Hz) // clear screen every second
+  MTZ_CYCLIC(1_Hz) // clear screen every second
   {
     static unsigned frame = 0;
     std::cout << "\033[H\033[J";
@@ -70,12 +70,12 @@ void cyclic_demo()
 
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
-  MUD_CYCLIC(5_Hz)
+  MTZ_CYCLIC(5_Hz)
   {
     std::cout << '='; // add 5 '=' to progress bar every second
   };
   
-  MUD_CYCLIC(25_Hz)
+  MTZ_CYCLIC(25_Hz)
   {
     std::cout << '-'; // add 25 '-' to progress bar every second
   };
