@@ -117,7 +117,7 @@ namespace mtz
 #   define _mtz_impl_EXPECTED(CONDITION) (CONDITION) _mtz_impl_LIKELY
 # endif
 
-// support from clang 3.9.0 and GCC 5.1 onward
+// support from clang 3.9.0 and GCC 4.7.3 onward
 # if defined(__clang__)
 #   define _mtz_impl_NODISCARD __attribute__((warn_unused_result))
 # elif defined(__GNUC__)
