@@ -377,7 +377,7 @@ namespace mtz
     inline // waits for all work to be done
     void wait() const noexcept;
 
-    // query amount of workers
+    inline // query amount of workers
     auto size() const noexcept -> unsigned;
 
     //
@@ -399,23 +399,18 @@ namespace mtz
     std::queue<_impl::_work_t>        _queue;
     std::thread                       _assignation_thread{_async_assign, this};
   };
-//---Nimata library: frontend definitions-------------------------------------------------------------------------------
-  Pool::Pool(signed N_) noexcept :
-    _workers(new _impl::_worker[_n_workers])
   {
-    _mtz_impl_DEBUG("%u thread%s aquired", _n_workers, _n_workers == 1 ? "" : "s");
-  }
 
-  Pool::~Pool() noexcept
-  {
-    wait();
 
     _alive = false;
     _assignation_thread.join();
 
     _mtz_impl_DEBUG("all workers killed");
+//---Nimata library: frontend definitions-------------------------------------------------------------------------------
+  Pool::Pool(signed N_) noexcept :
     _size(_impl::_compute_number_of_threads(N_)),
     _workers(new _impl::_worker[_size])
+    _mtz_impl_DEBUG("%u thread%s aquired.", _size, _size == 1 ? "" : "s");
   }
   
   template<typename F, typename... A>
