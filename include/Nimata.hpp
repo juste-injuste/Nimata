@@ -361,37 +361,6 @@ namespace mtz
     template<typename F, typename... A>
     using _future = std::future<_impl::_if_type<decltype(std::declval<F>()(A()...))>>;
 
-    // class _parfor final
-    // {
-    // public:
-    //   struct idx;
-
-    //   inline
-    //   _parfor(const size_t from, const size_t past) noexcept;
-
-    //   inline
-    //   _parfor(const size_t size) noexcept;
-
-    //   inline
-    //   auto operator=(_work_t&& body) noexcept -> _parfor*;
-
-    //   friend
-    //   void operator<<=(Pool& pool, _parfor* const parfor) noexcept;
-
-    // private:
-    //   _work_t      _work = nullptr;
-    //   const size_t _from = 0;
-    //   const size_t _past = {};
-    // };
-
-    // struct _parfor::idx final
-    // {
-    //   inline
-    //   operator size_t() const noexcept;
-    // };
-
-    // static thread_local size_t _parfor_idx;
-
     template<typename T>
     struct _is_iterable final
     {
@@ -471,31 +440,25 @@ namespace mtz
     inline // waits for all work to be done
     void wait() const noexcept;
 
+    inline // enable workers
+    void work() noexcept;
+
+    inline // disable workers
+    void stop() noexcept;
+
     inline // query amount of workers
     auto size() const noexcept -> unsigned;
 
-    //
-    inline
-    auto parfor(const size_t size_) noexcept -> _impl::_parfor<size_t>;
+    inline // parallel for-loop with range = [0, 'size')
+    auto parfor(size_t size) noexcept -> _impl::_parfor<size_t>;
     
-    //
     template<typename type>
-    inline
-    auto parfor(type from_, type past_) noexcept -> _impl::_parfor<type>;
+    inline // parallel for-loop with range = ['from', 'past')
+    auto parfor(type from, type past) noexcept -> _impl::_parfor<type>;
     
-    //
     template<typename iterable>
-    inline
-    auto parfor(iterable& iterable_) noexcept -> _impl::_parfor<iterable>;
-
-    // variable to use as an index when using 'parfor'
-    // static index idx;
-
-    //
-    void work() noexcept { _active = true;  }
-
-    //
-    void stop() noexcept { _active = false; }
+    inline // parallel for-loop over iterable
+    auto parfor(iterable& data) noexcept -> _impl::_parfor<iterable>;
 
     inline // waits for all work to be done then join threads
     ~Pool() noexcept;
@@ -511,8 +474,6 @@ namespace mtz
     std::mutex                        _queue_mtx;
     std::queue<_impl::_work_t>        _queue;
     std::thread                       _assignation_thread{_async_assign, this};
-  // public:
-  //   auto push() noexcept -> Pool& { return *this; }
   };
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _impl
@@ -543,49 +504,10 @@ namespace mtz
         _pool->wait();
       }
 
-      Pool* const _pool;
-      iterator _from;
+      Pool* const    _pool;
+      iterator       _from;
       const iterator _past;
     };
-
-    // _parfor::_parfor(const size_t from_, const size_t past_) noexcept :
-    //   _from(from_),
-    //   _past(past_)
-    // {}
-
-    // _parfor::_parfor(const size_t size_) noexcept :
-    //   _past(size_)
-    // {}
-
-    // auto _parfor::operator=(_work_t&& body_) noexcept -> _parfor*
-    // {
-    //   _work = std::move(body_);
-
-    //   return this;
-    // }
-
-    // inline
-    // void operator<<=(Pool& pool_, _parfor* const parfor) noexcept
-    // {
-    //   for (size_t k = parfor->_from; k < parfor->_past; ++k)
-    //   {
-    //     pool_.push(
-    //       [&](const size_t idx)
-    //       {
-    //         _parfor_idx = idx;
-    //         parfor->_work();
-    //       },
-    //       k
-    //     );
-    //   }
-
-    //   pool_.wait();
-    // }
-
-    // _parfor::idx::operator size_t() const noexcept
-    // {
-    //   return _parfor_idx;
-    // }
   }
 //---Nimata library: frontend definitions-------------------------------------------------------------------------------
   Pool::Pool(signed N_) noexcept :
@@ -661,6 +583,16 @@ namespace mtz
       _mtz_impl_DEBUG("all threads finished their work.");
     }
   }
+  
+  void Pool::work() noexcept
+  {
+    _active = true;
+  }
+
+  void Pool::stop() noexcept
+  {
+    _active = false;
+  }
 
   auto Pool::size() const noexcept -> unsigned
   {
@@ -683,10 +615,19 @@ namespace mtz
   {
     return _impl::_parfor<iterable>(this, begin(iterable_), end(iterable_));
   }
-
-// # define parfor(...) push() <<= mtz::_impl::_parfor(__VA_ARGS__) = [&]() -> void
+  
 # define parfor(PARFOR_VARIABLE, ...) \
     parfor(__VA_ARGS__) = [&](decltype(mtz::_impl::_parfor_type(__VA_ARGS__)) PARFOR_VARIABLE) -> void
+
+  Pool::~Pool() noexcept
+  {
+    wait();
+
+    _alive = false;
+    _assignation_thread.join();
+
+    _mtz_impl_DEBUG("all workers killed.");
+  }
 
   void Pool::_async_assign() noexcept
   {
@@ -708,24 +649,6 @@ namespace mtz
       }
     }
   }
-
-  Pool::~Pool() noexcept
-  {
-    wait();
-
-    _alive = false;
-    _assignation_thread.join();
-
-    _mtz_impl_DEBUG("all workers killed.");
-  }
-  
-// # undef  MTZ_PARFOR
-// # define MTZ_PARFOR(POOL, ...)                  _mtz_impl_PARFOR_PRXY(__LINE__, POOL, __VA_ARGS__)
-// # define _mtz_impl_PARFOR_PRXY(LINE, POOL, ...) _mtz_impl_PARFOR_IMPL(LINE,     POOL, __VA_ARGS__)
-// # define _mtz_impl_PARFOR_IMPL(LINE, POOL, ...) POOL <<= mtz::_impl::_parfor(__VA_ARGS__) = [&]
-
-// # undef  MTZ_PARFOR_IDX
-// # define MTZ_PARFOR_IDX mtz::Pool::idx
 
 # undef  MTZ_CYCLIC
 # define MTZ_CYCLIC(NS)                  _mtz_impl_CYCLIC_PRXY(__LINE__, NS)
