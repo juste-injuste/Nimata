@@ -399,10 +399,13 @@ namespace mtz
     std::queue<_impl::_work_t>        _queue;
     std::thread                       _assignation_thread{_async_assign, this};
   };
+//---Nimata library: backend--------------------------------------------------------------------------------------------
+  namespace _impl
   {
 
 
 
+  }
 //---Nimata library: frontend definitions-------------------------------------------------------------------------------
   Pool::Pool(signed N_) noexcept :
     _size(_impl::_compute_number_of_threads(N_)),
