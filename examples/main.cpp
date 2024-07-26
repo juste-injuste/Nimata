@@ -4,6 +4,8 @@
 
 #define NIMATA_DEBUGGING
 #include "../include/Nimata.hpp"
+#include "../include/Chronometro.hpp"
+
 
 static std::atomic_uint work_count;
 int some_work()
