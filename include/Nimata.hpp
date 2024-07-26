@@ -329,6 +329,26 @@ namespace mtz
       }
     }
 
+    template<typename T, typename R = void>
+    using _if_boollike = typename std::enable_if<std::is_convertible<T, bool>::value == true, R>::type;
+
+    template<typename T, typename R = void>
+    using _no_boollike = typename std::enable_if<std::is_convertible<T, bool>::value != true, R>::type;
+
+    template<typename F>
+    constexpr
+    auto _is_valid(const F& function) noexcept -> _if_boollike<F, bool>
+    {
+      return static_cast<bool>(function);
+    }
+
+    template<typename F>
+    constexpr
+    auto _is_valid(const F&) noexcept -> _no_boollike<F, bool>
+    {
+      return true;
+    }
+
     template<typename T>
     using _if_type = typename std::enable_if<not std::is_same<T, void>::value, T>::type;
 
@@ -428,7 +448,7 @@ namespace mtz
   template<typename F, typename... A>
   auto Pool::push(F function_, A... arguments_) noexcept -> _impl::_void<F, A...>
   {
-    if _mtz_impl_EXPECTED(function_)
+    if _mtz_impl_EXPECTED(_impl::_is_valid(function_))
     {
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
         // _impl::_as_work_t
@@ -476,7 +496,7 @@ namespace mtz
     {
       if (_active == false) continue;
 
-      for (unsigned k = 0; k < _n_workers; ++k)
+      for (unsigned k = 0; k < _size; ++k)
       {
         if (_workers[k]._busy()) continue;
 
@@ -491,26 +511,14 @@ namespace mtz
     }
   }
 
-  _mtz_impl_CONSTEXPR_CPP14
-  auto Pool::_compute_number_of_threads(signed N_) noexcept -> unsigned
+  Pool::~Pool() noexcept
   {
-    if (N_ <= 0)
-    {
-      N_ += MAX_THREADS;
-    }
-    
-    if (N_ < 1)
-    {
-      _mtz_impl_DEBUG("%d threads is not possible, 1 used instead", N_);
-      N_ = 1;
-    }
+    wait();
 
-    if (N_ > static_cast<signed>(MAX_THREADS - 2))
-    {
-      _mtz_impl_DEBUG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
-    }
-    
-    return static_cast<unsigned>(N_);
+    _alive = false;
+    _assignation_thread.join();
+
+    _mtz_impl_DEBUG("all workers killed.");
   }
   
 # undef  MTZ_CYCLIC
