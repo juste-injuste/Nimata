@@ -48,6 +48,7 @@ SOFTWARE.
 #include <ostream>    // for std::ostream
 #include <iostream>   // for std::clog
 #include <memory>     // for std::unique_ptr
+#include <utility>    // for std::declval
 //---conditionally necessary standard libraries-------------------------------------------------------------------------
 #if defined(MTZ_DEBUGGING)
 # include <cstdio>    // for std::sprintf
@@ -110,20 +111,14 @@ namespace mtz
 
 // support from clang 3.9.0 and GCC 4.7.3 onward
 # if defined(__clang__)
+#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
 #   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
 # elif defined(__GNUC__)
+#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
 #   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
-# else
-#   define _mtz_impl_EXPECTED(CONDITION) (CONDITION) _mtz_impl_LIKELY
-# endif
-
-// support from clang 3.9.0 and GCC 4.7.3 onward
-# if defined(__clang__)
-#   define _mtz_impl_NODISCARD __attribute__((warn_unused_result))
-# elif defined(__GNUC__)
-#   define _mtz_impl_NODISCARD __attribute__((warn_unused_result))
 # else
 #   define _mtz_impl_NODISCARD
+#   define _mtz_impl_EXPECTED(CONDITION) (CONDITION) _mtz_impl_LIKELY
 # endif
 
 // support from clang 10.0.0 and GCC 10.1 onward
@@ -316,10 +311,10 @@ namespace mtz
     using _if_type = typename std::enable_if<not std::is_same<T, void>::value, T>::type;
 
     template<typename F, typename... A>
-    using _void = typename std::enable_if<std::is_same<decltype(F()(A()...)), void>::value, void>::type;
+    using _void = typename std::enable_if<std::is_same<decltype(std::declval<F>()(A()...)), void>::value, void>::type;
 
     template<typename F, typename... A>
-    using _future = std::future<_impl::_if_type<decltype(F()(A()...))>>;
+    using _future = std::future<_impl::_if_type<decltype(std::declval<F>()(A()...))>>;
   }
 //---Nimata library: frontend struct and class definitions--------------------------------------------------------------
   class Pool final
@@ -328,11 +323,8 @@ namespace mtz
     inline // constructs pool
     Pool(signed number_of_threads = MAX_THREADS) noexcept;
 
-    inline // waits for all work to be done then join threads
-    ~Pool() noexcept;
-
     template<typename F, typename... A>
-    _mtz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value")
+    _mtz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value.")
     inline // add work that has a return value to queue
     auto push(F function, A... arguments) noexcept -> _impl::_future<F, A...>;
 
@@ -344,13 +336,17 @@ namespace mtz
     void wait() const noexcept;
 
     // query amount of workers
-    auto size() const noexcept -> unsigned { return _n_workers; }
+    auto size() const noexcept -> unsigned;
 
     //
     void work() noexcept { _active = true;  }
 
     //
-    void stop()  noexcept { _active = false; }
+    void stop() noexcept { _active = false; }
+
+    inline // waits for all work to be done then join threads
+    ~Pool() noexcept;
+    
   private:
     static inline _mtz_impl_CONSTEXPR_CPP14 auto _compute_number_of_threads(signed N) noexcept -> unsigned;
     inline void _async_assign() noexcept;
@@ -447,6 +443,11 @@ namespace mtz
     }
   }
 
+  auto Pool::size() const noexcept -> unsigned
+  {
+    return _size;
+  }
+  
   void Pool::_async_assign() noexcept
   {
     while (_alive)
@@ -491,8 +492,8 @@ namespace mtz
   }
   
 # undef  MTZ_CYCLIC
-# define MTZ_CYCLIC(NS)                  _mtz_impl_CYCLIC_PROX(__LINE__, NS)
-# define _mtz_impl_CYCLIC_PROX(LINE, NS) _mtz_impl_CYCLIC_IMPL(LINE,     NS)
+# define MTZ_CYCLIC(NS)                  _mtz_impl_CYCLIC_PRXY(__LINE__, NS)
+# define _mtz_impl_CYCLIC_PRXY(LINE, NS) _mtz_impl_CYCLIC_IMPL(LINE,     NS)
 # define _mtz_impl_CYCLIC_IMPL(LINE, NS)                                      \
     mtz::_impl::_cyclic<NS> _mtz_impl_cyclic##LINE = (mtz::_impl::_work_t)[&]
 
