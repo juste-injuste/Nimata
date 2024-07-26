@@ -60,6 +60,9 @@ namespace mtz
 
   class Pool;
 
+// # define MTZ_PARFOR(POOL, ...)
+// # define MTZ_PARFOR_IDX
+
 # define MTZ_CYCLIC(NS)
 
   inline namespace _literals
@@ -357,6 +360,37 @@ namespace mtz
 
     template<typename F, typename... A>
     using _future = std::future<_impl::_if_type<decltype(std::declval<F>()(A()...))>>;
+
+    // class _parfor final
+    // {
+    // public:
+    //   struct idx;
+
+    //   inline
+    //   _parfor(const size_t from, const size_t past) noexcept;
+
+    //   inline
+    //   _parfor(const size_t size) noexcept;
+
+    //   inline
+    //   auto operator=(_work_t&& body) noexcept -> _parfor*;
+
+    //   friend
+    //   void operator<<=(Pool& pool, _parfor* const parfor) noexcept;
+
+    // private:
+    //   _work_t      _work = nullptr;
+    //   const size_t _from = 0;
+    //   const size_t _past = {};
+    // };
+
+    // struct _parfor::idx final
+    // {
+    //   inline
+    //   operator size_t() const noexcept;
+    // };
+
+    // static thread_local size_t _parfor_idx;
   }
 //---Nimata library: frontend struct and class definitions--------------------------------------------------------------
   class Pool final
@@ -398,13 +432,52 @@ namespace mtz
     std::mutex                        _queue_mtx;
     std::queue<_impl::_work_t>        _queue;
     std::thread                       _assignation_thread{_async_assign, this};
+  // public:
+  //   auto push() noexcept -> Pool& { return *this; }
   };
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _impl
   {
 
 
+    // _parfor::_parfor(const size_t from_, const size_t past_) noexcept :
+    //   _from(from_),
+    //   _past(past_)
+    // {}
 
+    // _parfor::_parfor(const size_t size_) noexcept :
+    //   _past(size_)
+    // {}
+
+    // auto _parfor::operator=(_work_t&& body_) noexcept -> _parfor*
+    // {
+    //   _work = std::move(body_);
+
+    //   return this;
+    // }
+
+    // inline
+    // void operator<<=(Pool& pool_, _parfor* const parfor) noexcept
+    // {
+    //   for (size_t k = parfor->_from; k < parfor->_past; ++k)
+    //   {
+    //     pool_.push(
+    //       [&](const size_t idx)
+    //       {
+    //         _parfor_idx = idx;
+    //         parfor->_work();
+    //       },
+    //       k
+    //     );
+    //   }
+
+    //   pool_.wait();
+    // }
+
+    // _parfor::idx::operator size_t() const noexcept
+    // {
+    //   return _parfor_idx;
+    // }
   }
 //---Nimata library: frontend definitions-------------------------------------------------------------------------------
   Pool::Pool(signed N_) noexcept :
@@ -486,6 +559,7 @@ namespace mtz
     return _size;
   }
   
+// # define parfor(...) push() <<= mtz::_impl::_parfor(__VA_ARGS__) = [&]() -> void
   void Pool::_async_assign() noexcept
   {
     while (_alive)
@@ -517,6 +591,14 @@ namespace mtz
     _mtz_impl_DEBUG("all workers killed.");
   }
   
+// # undef  MTZ_PARFOR
+// # define MTZ_PARFOR(POOL, ...)                  _mtz_impl_PARFOR_PRXY(__LINE__, POOL, __VA_ARGS__)
+// # define _mtz_impl_PARFOR_PRXY(LINE, POOL, ...) _mtz_impl_PARFOR_IMPL(LINE,     POOL, __VA_ARGS__)
+// # define _mtz_impl_PARFOR_IMPL(LINE, POOL, ...) POOL <<= mtz::_impl::_parfor(__VA_ARGS__) = [&]
+
+// # undef  MTZ_PARFOR_IDX
+// # define MTZ_PARFOR_IDX mtz::Pool::idx
+
 # undef  MTZ_CYCLIC
 # define MTZ_CYCLIC(NS)                  _mtz_impl_CYCLIC_PRXY(__LINE__, NS)
 # define _mtz_impl_CYCLIC_PRXY(LINE, NS) _mtz_impl_CYCLIC_IMPL(LINE,     NS)
