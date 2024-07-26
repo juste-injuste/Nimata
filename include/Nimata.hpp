@@ -327,22 +327,18 @@ namespace mtz
       }
     }
 
-    template<typename T, typename R = void>
-    using _if_boollike = typename std::enable_if<std::is_convertible<T, bool>::value == true, R>::type;
-
-    template<typename T, typename R = void>
-    using _no_boollike = typename std::enable_if<std::is_convertible<T, bool>::value != true, R>::type;
-
     template<typename F>
     constexpr
-    auto _is_valid(const F& function) noexcept -> _if_boollike<F, bool>
+    auto _to_bool(const F& function) noexcept
+      -> typename std::enable_if<std::is_convertible<F, bool>::value == true, bool>::type
     {
       return static_cast<bool>(function);
     }
 
     template<typename F>
     constexpr
-    auto _is_valid(const F&) noexcept -> _no_boollike<F, bool>
+    auto _to_bool(const F&) noexcept
+      -> typename std::enable_if<std::is_convertible<F, bool>::value != true, bool>::type
     {
       return true;
     }
@@ -351,10 +347,10 @@ namespace mtz
     using _if_type = typename std::enable_if<not std::is_same<T, void>::value, T>::type;
 
     template<typename F, typename... A>
-    using _void = typename std::enable_if<std::is_same<decltype(std::declval<F>()(A()...)), void>::value, void>::type;
+    using _future = std::future<_if_type<decltype(std::declval<F>()(A()...))>>;
 
     template<typename F, typename... A>
-    using _future = std::future<_impl::_if_type<decltype(std::declval<F>()(A()...))>>;
+    using _void = typename std::enable_if<std::is_same<decltype(std::declval<F>()(A()...)), void>::value, void>::type;
 
     template<typename T>
     struct _is_iterable final
@@ -364,9 +360,9 @@ namespace mtz
       static
       auto _impl(int) -> decltype
       (
-        void(begin(T_()) != end(T_())),
-        void(++begin(T_())),
-        void(*begin(T_())),
+        void(  begin(T_()) != end(T_())),
+        void(++begin(T_())             ),
+        void( *begin(T_())             ),
         std::true_type{}
       );
 
@@ -384,11 +380,11 @@ namespace mtz
     template<typename T>
     struct _iter_type<T, true> final
     {
-      using iter = decltype(begin(T()));
+      using iter = decltype( begin(T()));
       using type = decltype(*begin(T()));
       
       static constexpr
-      type _get(iter data) noexcept
+      type _dereference(const iter& data) noexcept
       {
         return *data;
       }
@@ -401,7 +397,7 @@ namespace mtz
       using type = T;
 
       static constexpr
-      type _get(iter data) noexcept
+      type _dereference(const iter data) noexcept
       {
         return data;
       }
@@ -492,7 +488,7 @@ namespace mtz
 
           for (auto k = _from; k != _past; ++k)
           {
-            _pool->_queue.push([=]{ body(_iter_type<T>::_get(k)); });
+            _pool->_queue.push([=]{ body(_iter_type<T>::_dereference(k)); });
           }
         }
 
@@ -542,7 +538,7 @@ namespace mtz
   template<typename F, typename... A>
   auto Pool::push(F function_, A... arguments_) noexcept -> _impl::_void<F, A...>
   {
-    if _mtz_impl_EXPECTED(_impl::_is_valid(function_))
+    if _mtz_impl_EXPECTED(_impl::_to_bool(function_))
     {
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
         // _impl::_as_work_t
