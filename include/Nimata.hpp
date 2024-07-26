@@ -414,6 +414,9 @@ namespace mtz
     inline // query amount of workers
     auto size() const noexcept -> unsigned;
 
+    // variable to use as an index when using 'parfor'
+    // static index idx;
+
     //
     void work() noexcept { _active = true;  }
 
