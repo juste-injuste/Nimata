@@ -159,7 +159,7 @@ int main()
   {
     // threadpool_demo();
 
-    // cyclic_demo();
+    cyclic_demo();
 
     parfor_demo();
   }
