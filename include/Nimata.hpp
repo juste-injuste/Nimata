@@ -154,6 +154,28 @@ namespace mtz
 #   define _mtz_impl_CONSTEXPR_CPP14
 # endif
 
+    inline _mtz_impl_CONSTEXPR_CPP14
+    auto _compute_number_of_threads(signed N_) noexcept -> unsigned
+    {
+      if (N_ <= 0)
+      {
+        N_ += MAX_THREADS;
+      }
+      
+      if (N_ < 1)
+      {
+        _mtz_impl_DEBUG("%d threads is not possible, 1 used instead", N_);
+        N_ = 1;
+      }
+
+      if (N_ > static_cast<signed>(MAX_THREADS - 2))
+      {
+        _mtz_impl_DEBUG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
+      }
+      
+      return static_cast<unsigned>(N_);
+    }
+
     using _work_t = std::function<void()>;
     // using _work_t = void(*)();
     
@@ -348,11 +370,10 @@ namespace mtz
     ~Pool() noexcept;
     
   private:
-    static inline _mtz_impl_CONSTEXPR_CPP14 auto _compute_number_of_threads(signed N) noexcept -> unsigned;
     inline void _async_assign() noexcept;
     std::atomic<bool>                 _alive  = {true};
     std::atomic<bool>                 _active = {true};
-    unsigned                          _n_workers;
+    unsigned                          _size;
     std::unique_ptr<_impl::_worker[]> _workers;
     std::mutex                        _queue_mtx;
     std::queue<_impl::_work_t>        _queue;
@@ -360,7 +381,6 @@ namespace mtz
   };
 //---Nimata library: frontend definitions-------------------------------------------------------------------------------
   Pool::Pool(signed N_) noexcept :
-    _n_workers(_compute_number_of_threads(N_)),
     _workers(new _impl::_worker[_n_workers])
   {
     _mtz_impl_DEBUG("%u thread%s aquired", _n_workers, _n_workers == 1 ? "" : "s");
@@ -374,6 +394,8 @@ namespace mtz
     _assignation_thread.join();
 
     _mtz_impl_DEBUG("all workers killed");
+    _size(_impl::_compute_number_of_threads(N_)),
+    _workers(new _impl::_worker[_size])
   }
   
   template<typename F, typename... A>
@@ -396,9 +418,9 @@ namespace mtz
         )
       );
 
-      _mtz_impl_DEBUG("pushed a task with return value");
+      _mtz_impl_DEBUG("pushed a task with return value.");
     }
-    else _mtz_impl_DEBUG("null task pushed");
+    else _mtz_impl_DEBUG("null task pushed.");
 
     return future;
   }
@@ -415,9 +437,9 @@ namespace mtz
         )
       );
 
-      _mtz_impl_DEBUG("pushed a task with no return value");
+      _mtz_impl_DEBUG("pushed a task with no return value.");
     }
-    else _mtz_impl_DEBUG("null task pushed");
+    else _mtz_impl_DEBUG("null task pushed.");
 
     return;
   }
@@ -428,18 +450,18 @@ namespace mtz
     {
       while (_queue.empty() == false)
       {
-        std::this_thread::sleep_for(std::chrono::microseconds{1});
+        std::this_thread::sleep_for(std::chrono::nanoseconds{1});
       };
 
-      for (unsigned k = 0; k < _n_workers; ++k)
+      for (unsigned k = 0; k < _size; ++k)
       {
         while (_workers[k]._busy())
         {
-          std::this_thread::sleep_for(std::chrono::microseconds{1});
+          std::this_thread::sleep_for(std::chrono::nanoseconds{1});
         }
       }
 
-      _mtz_impl_DEBUG("all threads finished their work");
+      _mtz_impl_DEBUG("all threads finished their work.");
     }
   }
 
