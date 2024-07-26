@@ -52,6 +52,7 @@ void threadpool_demo()
   std::cout << "total elapsed time: " << total_elapsed.count() << " ms\n";
   std::cout << "completed work:     " << work_count << '\n';
   std::cout << "press enter to continue...\n";
+
   std::cin.get();
 }
 
@@ -84,7 +85,7 @@ void cyclic_demo()
 }
 
 int main()
-{ 
+{
   while (true)
   {
     threadpool_demo();
