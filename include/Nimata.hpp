@@ -276,8 +276,9 @@ namespace mtz
     {
       static_assert(period >= 0, "MTZ_CYCLIC: period must be greater than 0");
     public:
-      _cyclic(_work_t task) noexcept :
-        _work(task ? task : (_mtz_impl_DEBUG("task is invalid"), nullptr))
+      template<typename W>
+      _cyclic(W work_) noexcept :
+        _work(work_)
       {
         _mtz_impl_DEBUG("thread spawned");
       }
@@ -291,7 +292,7 @@ namespace mtz
         _mtz_impl_DEBUG("thread joined");
       }
     private:
-      inline void _loop();
+      inline   void _loop();
       volatile bool _alive = true;
       _work_t       _work;
       std::thread   _worker_thread{_loop, this};
@@ -300,21 +301,18 @@ namespace mtz
     template<std::chrono::nanoseconds::rep period>
     void _cyclic<period>::_loop()
     {
-      if (_work)
-      {
-        std::chrono::high_resolution_clock::time_point previous = {};
-        std::chrono::high_resolution_clock::time_point now;
-        std::chrono::nanoseconds::rep                  elapsed;
+      std::chrono::high_resolution_clock::time_point previous = {};
+      std::chrono::high_resolution_clock::time_point now;
+      std::chrono::nanoseconds::rep                  elapsed;
 
-        while (_alive)
+      while (_alive)
+      {
+        now     = std::chrono::high_resolution_clock::now();
+        elapsed = std::chrono::nanoseconds{now - previous}.count();
+        if (elapsed >= period)
         {
-          now     = std::chrono::high_resolution_clock::now();
-          elapsed = std::chrono::nanoseconds{now - previous}.count();
-          if (elapsed >= period)
-          {
-            previous = now;
-            _work();
-          }
+          previous = now;
+          _work();
         }
       }
     }
@@ -323,12 +321,9 @@ namespace mtz
     inline
     void _cyclic<0>::_loop()
     {
-      if (_work)
+      while (_alive)
       {
-        while (_alive)
-        {
-          _work();
-        }
+        _work();
       }
     }
 
@@ -654,7 +649,7 @@ namespace mtz
 # define MTZ_CYCLIC(NS)                  _mtz_impl_CYCLIC_PRXY(__LINE__, NS)
 # define _mtz_impl_CYCLIC_PRXY(LINE, NS) _mtz_impl_CYCLIC_IMPL(LINE,     NS)
 # define _mtz_impl_CYCLIC_IMPL(LINE, NS)                                      \
-    mtz::_impl::_cyclic<NS> _mtz_impl_cyclic##LINE = (mtz::_impl::_work_t)[&]
+    mtz::_impl::_cyclic<NS> _mtz_impl_cyclic##LINE = [&]() -> void
 
   inline namespace _literals
   {
