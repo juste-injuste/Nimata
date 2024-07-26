@@ -391,6 +391,66 @@ namespace mtz
     // };
 
     // static thread_local size_t _parfor_idx;
+
+    template<typename T>
+    struct _is_iterable final
+    {
+    private:
+      template<typename T_>
+      static
+      auto _impl(int) -> decltype
+      (
+        void(begin(T_()) != end(T_())),
+        void(++begin(T_())),
+        void(*begin(T_())),
+        std::true_type{}
+      );
+
+      template<typename T_>
+      static
+      auto _impl(...) -> std::false_type;
+
+    public:
+      static constexpr bool value = decltype(_impl<T>(0)){};
+    };
+
+    template<typename T, bool = _is_iterable<T>::value>
+    struct _iter_type;
+    
+    template<typename T>
+    struct _iter_type<T, true> final
+    {
+      using iter = decltype(begin(T()));
+      using type = decltype(*begin(T()));
+      
+      static constexpr
+      type _get(iter data) noexcept
+      {
+        return *data;
+      }
+    };
+    
+    template<typename T>
+    struct _iter_type<T, false> final
+    {
+      using iter = T;
+      using type = T;
+
+      static constexpr
+      type _get(iter data) noexcept
+      {
+        return data;
+      }
+    };
+
+    template<typename... types>
+    auto _parfor_iter(types...) -> typename _iter_type<typename std::common_type<types...>::type>::iter;
+
+    template<typename... types>
+    auto _parfor_type(types...) -> typename _iter_type<typename std::common_type<types...>::type>::type;
+
+    template<typename type>
+    struct _parfor;
   }
 //---Nimata library: frontend struct and class definitions--------------------------------------------------------------
   class Pool final
@@ -414,6 +474,20 @@ namespace mtz
     inline // query amount of workers
     auto size() const noexcept -> unsigned;
 
+    //
+    inline
+    auto parfor(const size_t size_) noexcept -> _impl::_parfor<size_t>;
+    
+    //
+    template<typename type>
+    inline
+    auto parfor(type from_, type past_) noexcept -> _impl::_parfor<type>;
+    
+    //
+    template<typename iterable>
+    inline
+    auto parfor(iterable& iterable_) noexcept -> _impl::_parfor<iterable>;
+
     // variable to use as an index when using 'parfor'
     // static index idx;
 
@@ -427,6 +501,8 @@ namespace mtz
     ~Pool() noexcept;
     
   private:
+    template<typename>
+    friend struct _impl::_parfor;
     inline void _async_assign() noexcept;
     std::atomic<bool>                 _alive  = {true};
     std::atomic<bool>                 _active = {true};
@@ -441,7 +517,36 @@ namespace mtz
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _impl
   {
+    template<typename T>
+    struct _parfor final
+    {
+      using iterator = decltype(_parfor_iter(std::declval<T&>()));
 
+      _parfor(Pool* const pool_, iterator from_, iterator past_) noexcept :
+        _pool(pool_),
+        _from(from_),
+        _past(past_)
+      {}
+
+      template<typename F>
+      void operator=(F&& body) noexcept
+      {
+        {
+          std::lock_guard<std::mutex> pool_queue_lock{_pool->_queue_mtx};
+
+          for (auto k = _from; k != _past; ++k)
+          {
+            _pool->_queue.push([=]{ body(_iter_type<T>::_get(k)); });
+          }
+        }
+
+        _pool->wait();
+      }
+
+      Pool* const _pool;
+      iterator _from;
+      const iterator _past;
+    };
 
     // _parfor::_parfor(const size_t from_, const size_t past_) noexcept :
     //   _from(from_),
@@ -562,7 +667,27 @@ namespace mtz
     return _size;
   }
   
+  template<typename type>
+  auto Pool::parfor(type from_, type past_) noexcept -> _impl::_parfor<type>
+  {
+    return _impl::_parfor<type>(this, from_, past_);
+  }
+
+  auto Pool::parfor(const size_t size_) noexcept -> _impl::_parfor<size_t>
+  {
+    return _impl::_parfor<size_t>(this, 0, size_);
+  }
+  
+  template<typename iterable>
+  auto Pool::parfor(iterable& iterable_) noexcept -> _impl::_parfor<iterable>
+  {
+    return _impl::_parfor<iterable>(this, begin(iterable_), end(iterable_));
+  }
+
 // # define parfor(...) push() <<= mtz::_impl::_parfor(__VA_ARGS__) = [&]() -> void
+# define parfor(PARFOR_VARIABLE, ...) \
+    parfor(__VA_ARGS__) = [&](decltype(mtz::_impl::_parfor_type(__VA_ARGS__)) PARFOR_VARIABLE) -> void
+
   void Pool::_async_assign() noexcept
   {
     while (_alive)

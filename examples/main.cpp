@@ -86,12 +86,81 @@ void cyclic_demo()
   std::cin.get();
 }
 
+void parfor_demo()
+{
+  std::cout << "\033[H\033[J";
+
+  //-----------------------
+  for (size_t k = 0; k < 10; ++k)
+  {
+    std::cout << k;
+  }
+  //-----------------------
+
+
+  std::cout << '\n';
+
+  //-----------------------
+  mtz::Pool pool1(3);
+  // pool1.parfor(0, 10)
+  // {
+  //   std::cout << mtz::Pool::idx;
+  // };
+  //-----------------------
+
+  std::cout << '\n';
+
+  //-----------------------
+  mtz::Pool pool2(3);
+  // MTZ_PARFOR(pool2, 10)
+  // {
+  //   std::cout << MTZ_PARFOR_IDX;
+  // };
+  //-----------------------
+
+  std::cout << '\n';
+
+  //-----------------------
+  // mtz::Pool(10).parfor(10)
+  // {
+  //   std::cout << mtz::Pool::idx;
+  // };
+  //-----------------------
+
+  std::vector<int> vec = {1, 2, 3, 4, 5, 6, 7};
+  pool1.parfor(val, vec)
+  {
+    chz::sleep(10);
+    std::cout << val;
+  };
+
+  std::cout << '\n';
+
+  pool1.parfor(idx, 'A', 'Q')
+  {
+    chz::sleep(10);
+    std::cout << idx;
+  };
+
+
+  std::cout << '\n';
+
+  pool1.parfor(idx, 'a', 'k')
+  {
+    std::cout << idx;
+  };
+  
+  std::cin.get();
+}
+
 int main()
 {
   while (true)
   {
-    threadpool_demo();
+    // threadpool_demo();
 
     // cyclic_demo();
+
+    parfor_demo();
   }
 }
