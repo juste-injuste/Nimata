@@ -402,14 +402,12 @@ namespace mtz
   {
 
 
-    _alive = false;
-    _assignation_thread.join();
 
-    _mtz_impl_DEBUG("all workers killed");
 //---Nimata library: frontend definitions-------------------------------------------------------------------------------
   Pool::Pool(signed N_) noexcept :
     _size(_impl::_compute_number_of_threads(N_)),
     _workers(new _impl::_worker[_size])
+  {
     _mtz_impl_DEBUG("%u thread%s aquired.", _size, _size == 1 ? "" : "s");
   }
   
