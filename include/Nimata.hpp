@@ -90,14 +90,27 @@ namespace mtz
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _impl
   {
-# if defined(__clang__)
 #   define _mtz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
+# if defined(__clang__)
 #   define _mtz_impl_CLANG_IGNORE(WARNING, ...)          \
       _mtz_impl_PRAGMA(clang diagnostic push)            \
       _mtz_impl_PRAGMA(clang diagnostic ignored WARNING) \
       __VA_ARGS__                                        \
       _mtz_impl_PRAGMA(clang diagnostic pop)
-# endif
+
+#   define _mtz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
+# elif defined(__GNUC__)
+#   define _mtz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
+
+#   define _mtz_impl_GCC_IGNORE(WARNING, ...)          \
+      _mtz_impl_PRAGMA(GCC diagnostic push)            \
+      _mtz_impl_PRAGMA(GCC diagnostic ignored WARNING) \
+      __VA_ARGS__                                      \
+      _mtz_impl_PRAGMA(GCC diagnostic pop)
+# else
+#   define _mtz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
+#   define _mtz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
+#endif
 
 // support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
@@ -179,58 +192,6 @@ namespace mtz
       return static_cast<unsigned>(N_);
     }
 
-    using _work_t = std::function<void()>;
-    // using _work_t = void(*)();
-    
-    // template <typename L, typename = void>
-    // struct _is_work_t final :
-    //   public std::false_type
-    // {};
-
-    // template <typename L>
-    // struct _is_work_t<L, decltype(static_cast<_work_t>(std::declval<L>()), void())> final :
-    //   public std::true_type
-    // {};
-
-    // template<typename L, typename T>
-    // using _if_is_work_t = typename std::enable_if<_is_work_t<L>::value == true, T>::type;
-
-    // template<typename L, typename T>
-    // using _if_no_work_t = typename std::enable_if<_is_work_t<L>::value != true, T>::type;
-
-    // template<typename L>
-    // inline
-    // auto _as_work_t(L lambda) noexcept -> _if_is_work_t<L, _work_t>
-    // {
-    //   std::cout << "_action!\n";
-
-    //   return static_cast<_work_t>(lambda);
-    // }
-
-    // template<typename L>
-    // inline
-    // auto _as_work_t(L&& lambda) noexcept -> _if_no_work_t<L, _work_t>
-    // {
-    //   // std::cout << "generic!\n";
-
-    //   static auto action = std::move(lambda);
-
-    //   return []{ action(); };
-    // }
-
-    // inline
-    // _work_t _as_work_t(std::function<void()>&& function) noexcept
-    // {
-    //   // std::cout << "function, ";
-
-    //   if (function == nullptr)
-    //   {
-    //     return []{};
-    //   }
-      
-    //   return _as_work_t([function]{ function(); });
-    // }
-
     class _worker final
     {
     public:
@@ -240,7 +201,7 @@ namespace mtz
         _worker_thread.join();
       }
 
-      void _task(_work_t task_) noexcept
+      void _task(const std::function<void()>& task_) noexcept
       {
         _work = task_;
         _work_available = true;
@@ -265,10 +226,10 @@ namespace mtz
           std::this_thread::yield();
         }
       }
-      volatile bool     _alive          = true;
-      _work_t           _work           = nullptr;
-      std::atomic<bool> _work_available = {false};
-      std::thread       _worker_thread{_loop, this};
+      volatile bool         _alive          = true;
+      std::function<void()> _work           = nullptr;
+      std::atomic<bool>     _work_available = {false};
+      std::thread           _worker_thread{_loop, this};
     };
 
     template<std::chrono::nanoseconds::rep period>
@@ -276,8 +237,8 @@ namespace mtz
     {
       static_assert(period >= 0, "MTZ_CYCLIC: period must be greater than 0");
     public:
-      template<typename W>
-      _cyclic(W work_) noexcept :
+      template<typename Work>
+      _cyclic(Work work_) noexcept :
         _work(work_)
       {
         _mtz_impl_DEBUG("thread spawned");
@@ -292,10 +253,10 @@ namespace mtz
         _mtz_impl_DEBUG("thread joined");
       }
     private:
-      inline   void _loop();
-      volatile bool _alive = true;
-      _work_t       _work;
-      std::thread   _worker_thread{_loop, this};
+      inline void _loop();
+      volatile bool         _alive = true;
+      std::function<void()> _work;
+      std::thread           _worker_thread{_loop, this};
     };
     
     template<std::chrono::nanoseconds::rep period>
@@ -380,11 +341,17 @@ namespace mtz
     template<typename T>
     struct _iter_type<T, true> final
     {
-      using iter = decltype( begin(T()));
-      using type = decltype(*begin(T()));
+      using iter = decltype( begin(std::declval<T&>()));
+      using type = decltype(*begin(std::declval<T&>()));
       
       static constexpr
-      type _dereference(const iter& data) noexcept
+      type _dereference(iter& data) noexcept
+      {
+        return *data;
+      }
+      
+      static constexpr
+      const type _dereference(const iter& data) noexcept
       {
         return *data;
       }
@@ -402,13 +369,7 @@ namespace mtz
         return data;
       }
     };
-
-    template<typename... types>
-    auto _parfor_iter(types...) -> typename _iter_type<typename std::common_type<types...>::type>::iter;
-
-    template<typename... types>
-    auto _parfor_type(types...) -> typename _iter_type<typename std::common_type<types...>::type>::type;
-
+    
     template<typename type>
     struct _parfor;
   }
@@ -440,12 +401,11 @@ namespace mtz
     inline // query amount of workers
     auto size() const noexcept -> unsigned;
 
-    inline // parallel for-loop with range = [0, 'size')
+    inline // parallel for-loop with index range = [0, 'size')
     auto parfor(size_t size) noexcept -> _impl::_parfor<size_t>;
     
-    template<typename type>
-    inline // parallel for-loop with range = ['from', 'past')
-    auto parfor(type from, type past) noexcept -> _impl::_parfor<type>;
+    inline // parallel for-loop with index range = ['from', 'past')
+    auto parfor(size_t from, size_t past) noexcept -> _impl::_parfor<size_t>;
     
     template<typename iterable>
     inline // parallel for-loop over iterable
@@ -463,7 +423,7 @@ namespace mtz
     unsigned                          _size;
     std::unique_ptr<_impl::_worker[]> _workers;
     std::mutex                        _queue_mtx;
-    std::queue<_impl::_work_t>        _queue;
+    std::queue<std::function<void()>> _queue;
     std::thread                       _assignation_thread{_async_assign, this};
   };
 //---Nimata library: backend--------------------------------------------------------------------------------------------
@@ -472,9 +432,9 @@ namespace mtz
     template<typename T>
     struct _parfor final
     {
-      using iterator = decltype(_parfor_iter(std::declval<T&>()));
+      using iterator = typename _iter_type<T>::iter;
 
-      _parfor(Pool* const pool_, iterator from_, iterator past_) noexcept :
+      _parfor(Pool* const pool_, const iterator& from_, const iterator& past_) noexcept :
         _pool(pool_),
         _from(from_),
         _past(past_)
@@ -486,9 +446,11 @@ namespace mtz
         {
           std::lock_guard<std::mutex> pool_queue_lock{_pool->_queue_mtx};
 
-          for (auto k = _from; k != _past; ++k)
+          for (iterator k = _from; k != _past; ++k)
           {
-            _pool->_queue.push([=]{ body(_iter_type<T>::_dereference(k)); });
+            _pool->_queue.push(
+              [=]{ body(_iter_type<T>::_dereference(k)); }
+            );
           }
         }
 
@@ -522,10 +484,7 @@ namespace mtz
       future = promise->get_future();
       
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
-        // _impl::_as_work_t
-        (
-          [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function_(arguments_...)); }
-        )
+        [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function_(arguments_...)); }
       );
 
       _mtz_impl_DEBUG("pushed a task with return value.");
@@ -541,10 +500,7 @@ namespace mtz
     if _mtz_impl_EXPECTED(_impl::_to_bool(function_))
     {
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
-        // _impl::_as_work_t
-        (
-          [=]{ function_(arguments_...); }
-        )
+        [=]{ function_(arguments_...); }
       );
 
       _mtz_impl_DEBUG("pushed a task with no return value.");
@@ -560,14 +516,14 @@ namespace mtz
     {
       while (_queue.empty() == false)
       {
-        std::this_thread::sleep_for(std::chrono::nanoseconds{1});
+        std::this_thread::sleep_for(std::chrono::nanoseconds(1));
       };
 
       for (unsigned k = 0; k < _size; ++k)
       {
         while (_workers[k]._busy())
         {
-          std::this_thread::sleep_for(std::chrono::nanoseconds{1});
+          std::this_thread::sleep_for(std::chrono::nanoseconds(1));
         }
       }
 
@@ -590,10 +546,9 @@ namespace mtz
     return _size;
   }
   
-  template<typename type>
-  auto Pool::parfor(type from_, type past_) noexcept -> _impl::_parfor<type>
+  auto Pool::parfor(const size_t from_, const size_t past_) noexcept -> _impl::_parfor<size_t>
   {
-    return _impl::_parfor<type>(this, from_, past_);
+    return _impl::_parfor<size_t>(this, from_, past_);
   }
 
   auto Pool::parfor(const size_t size_) noexcept -> _impl::_parfor<size_t>
@@ -607,8 +562,9 @@ namespace mtz
     return _impl::_parfor<iterable>(this, begin(iterable_), end(iterable_));
   }
   
-# define parfor(PARFOR_VARIABLE, ...) \
-    parfor(__VA_ARGS__) = [&](decltype(mtz::_impl::_parfor_type(__VA_ARGS__)) PARFOR_VARIABLE) -> void
+# define parfor(PARFOR_VARIABLE_DECLARATION, ...) \
+    parfor(__VA_ARGS__) = [&](PARFOR_VARIABLE_DECLARATION) -> void
+    // parfor(__VA_ARGS__) = [&](decltype(mtz::_impl::_parfor_type(__VA_ARGS__)) PARFOR_VARIABLE) -> void
 
   Pool::~Pool() noexcept
   {
@@ -687,6 +643,7 @@ namespace mtz
   }
 //----------------------------------------------------------------------------------------------------------------------
 # undef _mtz_impl_PRAGMA
+# undef _mtz_impl_GCC_IGNORE
 # undef _mtz_impl_CLANG_IGNORE
 # undef _mtz_impl_LIKELY
 # undef _mtz_impl_EXPECTED
