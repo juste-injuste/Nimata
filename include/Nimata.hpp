@@ -128,17 +128,17 @@ namespace mtz
 
 // support from clang 3.9.0 and GCC 4.7.3 onward
 # if defined(__clang__)
-#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
 #   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
 #   define _mtz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _mtz_impl_UNLIKELY
+#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
 # elif defined(__GNUC__)
-#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
 #   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
 #   define _mtz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _mtz_impl_UNLIKELY
+#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
 # else
-#   define _mtz_impl_NODISCARD
 #   define _mtz_impl_EXPECTED(CONDITION) (CONDITION) _mtz_impl_LIKELY
 #   define _mtz_impl_ABNORMAL(CONDITION) (CONDITION) _mtz_impl_UNLIKELY
+#   define _mtz_impl_NODISCARD
 # endif
 
 // support from clang 10.0.0 and GCC 10.1 onward
@@ -664,7 +664,9 @@ namespace mtz
 # undef _mtz_impl_GCC_IGNORE
 # undef _mtz_impl_CLANG_IGNORE
 # undef _mtz_impl_LIKELY
+# undef _mtz_impl_UNLIKELY
 # undef _mtz_impl_EXPECTED
+# undef _mtz_impl_ABNORMAL
 # undef _mtz_impl_NODISCARD
 # undef _mtz_impl_NODISCARD_REASON
 # undef _mtz_impl_DEBUG
