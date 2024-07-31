@@ -2,7 +2,8 @@
 #include <iostream>
 #include <atomic>
 
-#define NIMATA_DEBUGGING
+// #define NIMATA_DEBUGGING
+#include "../include/Paleta.hpp"
 #include "../include/Nimata.hpp"
 #include "../include/Chronometro.hpp"
 
@@ -15,7 +16,7 @@ void work_3(int) {        ++work_count; }
 
 void threadpool_demo()
 {
-  std::cout << "\033[H\033[J";
+  std::cout << fmz::Clear();
 
   static unsigned iterations = 0;
   mtz::Pool pool;
@@ -47,7 +48,7 @@ void cyclic_demo()
   MTZ_CYCLIC(1_Hz) // clear screen every second
   {
     static unsigned frame = 0;
-    std::cout << "\033[H\033[J";
+    std::cout << fmz::Clear();
     std::cout << "press enter to continue...\n";
     std::cout << "frame: " << ++frame << "\n";
     std::cout << "0%                        100%\n";
@@ -70,7 +71,7 @@ void cyclic_demo()
 
 void parfor_demo()
 {
-  std::cout << "\033[H\033[J";
+  std::cout << fmz::Clear();
 
   static auto vector = std::vector<int>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
@@ -113,7 +114,7 @@ int main()
   while (true)
   {
     threadpool_demo();
-
+    
     cyclic_demo();
 
     parfor_demo();
