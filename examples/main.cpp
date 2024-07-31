@@ -9,23 +9,9 @@
 
 static std::atomic_uint work_count;
 
-int some_work()
-{
-  chz::sleep<chz::Unit::us>(1);
-  return ++work_count;
-}
-
-void more_work()
-{
-  chz::sleep<chz::Unit::us>(1);
-  ++work_count;
-}
-
-void hihi_work(int)
-{
-  chz::sleep<chz::Unit::us>(1);
-  ++work_count;
-}
+int  work_1()    { return ++work_count; }
+void work_2()    {        ++work_count; }
+void work_3(int) {        ++work_count; }
 
 void threadpool_demo()
 {
@@ -35,19 +21,20 @@ void threadpool_demo()
   mtz::Pool pool;
   
   std::future<int> future;
-  for (auto measurement : chz::Measure())
+  CHZ_MEASURE()
   {
-    for (unsigned k = 10000; k; --k)
+    CHZ_LOOP_FOR(10000)
     {
-      future = pool.push(some_work);
-      pool.push(more_work);
-      pool.push(hihi_work, 1);
+      future = pool.push(work_1);
+      pool.push(work_2);
+      pool.push(work_3, 1);
     }
     
     pool.wait();
-    measurement.avoid(), std::cout << "iteration:          " << ++iterations << '\n';
   }
-  std::cout << "completed work:     " << work_count << '\n';
+
+  std::cout << "iteration:          " << ++iterations << '\n';
+  std::cout << "completed work:     " <<   work_count << '\n';
   std::cout << "press enter to continue...\n";
 
   std::cin.get();
