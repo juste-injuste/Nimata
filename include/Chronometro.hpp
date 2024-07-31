@@ -405,6 +405,12 @@ namespace chz
     inline // measure iterations with custom iteration/total message
     Measure(unsigned iterations, const char* iteration_format, const char* total_format) noexcept;
 
+    inline // measure one iteration with custom total message
+    Measure(const char* total_format) noexcept;
+
+    inline // measure iterations with custom total message
+    Measure(const char* total_format, unsigned iterations) noexcept;
+
     inline // pause measurement
     void pause() noexcept;
 
@@ -650,6 +656,15 @@ namespace chz
     _iterations(iterations_),
     _split_fmt(iteration_format_ && *iteration_format_ ? iteration_format_ : nullptr),
     _total_fmt(total_format_     && *total_format_     ? total_format_     : nullptr)
+  {}
+
+  Measure::Measure(const char* const total_format_) noexcept :
+    _total_fmt(total_format_ && *total_format_ ? total_format_ : nullptr)
+  {}
+
+  Measure::Measure(const char* const total_format_, const unsigned iterations_) noexcept :
+    _iterations(iterations_),
+    _total_fmt(total_format_ && *total_format_ ? total_format_ : nullptr)
   {}
 
   void Measure::pause() noexcept

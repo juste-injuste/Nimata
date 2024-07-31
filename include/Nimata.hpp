@@ -60,9 +60,6 @@ namespace mtz
 
   class Pool;
 
-// # define MTZ_PARFOR(POOL, ...)
-// # define MTZ_PARFOR_IDX
-
 # define MTZ_CYCLIC(NS)
 
   inline namespace _literals
@@ -115,26 +112,33 @@ namespace mtz
 // support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
 # if __cplusplus < 202002L
-#   define _mtz_impl_LIKELY _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
+#   define _mtz_impl_LIKELY   _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
+#   define _mtz_impl_UNLIKELY _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[unlikely]])
 # else
-#   define _mtz_impl_LIKELY [[likely]]
+#   define _mtz_impl_LIKELY   [[likely]]
+#   define _mtz_impl_UNLIKELY [[unlikely]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _mtz_impl_LIKELY [[likely]]
+#   define _mtz_impl_LIKELY   [[likely]]
+#   define _mtz_impl_UNLIKELY [[unlikely]]
 # else
 #   define _mtz_impl_LIKELY
+#   define _mtz_impl_UNLIKELY
 # endif
 
 // support from clang 3.9.0 and GCC 4.7.3 onward
 # if defined(__clang__)
 #   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
 #   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
+#   define _mtz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _mtz_impl_UNLIKELY
 # elif defined(__GNUC__)
 #   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
 #   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
+#   define _mtz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _mtz_impl_UNLIKELY
 # else
 #   define _mtz_impl_NODISCARD
 #   define _mtz_impl_EXPECTED(CONDITION) (CONDITION) _mtz_impl_LIKELY
+#   define _mtz_impl_ABNORMAL(CONDITION) (CONDITION) _mtz_impl_UNLIKELY
 # endif
 
 // support from clang 10.0.0 and GCC 10.1 onward
@@ -232,10 +236,10 @@ namespace mtz
       std::thread           _worker_thread{_loop, this};
     };
 
-    template<std::chrono::nanoseconds::rep period>
+    template<std::chrono::nanoseconds::rep PERIOD>
     class _cyclic final
     {
-      static_assert(period >= 0, "MTZ_CYCLIC: period must be greater than 0");
+      static_assert(PERIOD >= 0, "MTZ_CYCLIC: 'PERIOD' must be greater or equal to 0.");
     public:
       template<typename Work>
       _cyclic(Work work_) noexcept :
@@ -259,8 +263,8 @@ namespace mtz
       std::thread           _worker_thread{_loop, this};
     };
     
-    template<std::chrono::nanoseconds::rep period>
-    void _cyclic<period>::_loop()
+    template<std::chrono::nanoseconds::rep PERIOD>
+    void _cyclic<PERIOD>::_loop()
     {
       std::chrono::high_resolution_clock::time_point previous = {};
       std::chrono::high_resolution_clock::time_point now;
@@ -270,7 +274,7 @@ namespace mtz
       {
         now     = std::chrono::high_resolution_clock::now();
         elapsed = std::chrono::nanoseconds{now - previous}.count();
-        if (elapsed >= period)
+        if (elapsed >= PERIOD)
         {
           previous = now;
           _work();
@@ -369,7 +373,7 @@ namespace mtz
         return data;
       }
     };
-    
+
     template<typename type>
     struct _parfor;
   }
@@ -398,9 +402,6 @@ namespace mtz
     inline // disable workers
     void stop() noexcept;
 
-    inline // query amount of workers
-    auto size() const noexcept -> unsigned;
-
     inline // parallel for-loop with index range = [0, 'size')
     auto parfor(size_t size) noexcept -> _impl::_parfor<size_t>;
     
@@ -411,20 +412,26 @@ namespace mtz
     inline // parallel for-loop over iterable
     auto parfor(iterable& data) noexcept -> _impl::_parfor<iterable>;
 
+    inline // get amount of workers
+    auto size() const noexcept -> unsigned;
+
+    inline // set amount of workers
+    void size(signed number_of_threads) noexcept;
+
     inline // waits for all work to be done then join threads
     ~Pool() noexcept;
     
   private:
     template<typename>
     friend struct _impl::_parfor;
-    inline void _async_assign() noexcept;
+    inline void _assign() noexcept;
     std::atomic<bool>                 _alive  = {true};
     std::atomic<bool>                 _active = {true};
-    unsigned                          _size;
-    std::unique_ptr<_impl::_worker[]> _workers;
+    std::atomic<unsigned>             _size;
+    std::atomic<_impl::_worker*>      _workers;
     std::mutex                        _queue_mtx;
     std::queue<std::function<void()>> _queue;
-    std::thread                       _assignation_thread{_async_assign, this};
+    std::thread                       _assignation_thread{_assign, this};
   };
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _impl
@@ -541,6 +548,16 @@ namespace mtz
     _active = false;
   }
 
+  void Pool::size(const signed N_) noexcept
+  {
+    wait();
+
+    _size = _impl::_compute_number_of_threads(N_);
+    
+    delete[] _workers;
+    _workers = new _impl::_worker[_size];    
+  }
+
   auto Pool::size() const noexcept -> unsigned
   {
     return _size;
@@ -564,7 +581,6 @@ namespace mtz
   
 # define parfor(PARFOR_VARIABLE_DECLARATION, ...) \
     parfor(__VA_ARGS__) = [&](PARFOR_VARIABLE_DECLARATION) -> void
-    // parfor(__VA_ARGS__) = [&](decltype(mtz::_impl::_parfor_type(__VA_ARGS__)) PARFOR_VARIABLE) -> void
 
   Pool::~Pool() noexcept
   {
@@ -573,14 +589,16 @@ namespace mtz
     _alive = false;
     _assignation_thread.join();
 
+    delete[] _workers;
+
     _mtz_impl_DEBUG("all workers killed.");
   }
 
-  void Pool::_async_assign() noexcept
+  void Pool::_assign() noexcept
   {
-    while (_alive)
+    while _mtz_impl_EXPECTED(_alive)
     {
-      if (_active == false) continue;
+      if _mtz_impl_ABNORMAL(_active == false) continue;
 
       for (unsigned k = 0; k < _size; ++k)
       {
@@ -591,7 +609,7 @@ namespace mtz
         {
           _workers[k]._task(std::move(_queue.front()));
           _queue.pop();
-          _mtz_impl_DEBUG("assigned to worker thread #%02u", k);
+          _mtz_impl_DEBUG("assigned to worker thread #%02u.", k);
         }
       }
     }
@@ -600,7 +618,7 @@ namespace mtz
 # undef  MTZ_CYCLIC
 # define MTZ_CYCLIC(NS)                  _mtz_impl_CYCLIC_PRXY(__LINE__, NS)
 # define _mtz_impl_CYCLIC_PRXY(LINE, NS) _mtz_impl_CYCLIC_IMPL(LINE,     NS)
-# define _mtz_impl_CYCLIC_IMPL(LINE, NS)                                      \
+# define _mtz_impl_CYCLIC_IMPL(LINE, NS) \
     mtz::_impl::_cyclic<NS> _mtz_impl_cyclic##LINE = [&]() -> void
 
   inline namespace _literals

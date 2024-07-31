@@ -15,14 +15,7 @@ int some_work()
   return ++work_count;
 }
 
-int more_work(int i)
-{
-  chz::sleep<chz::Unit::us>(1);
-  ++work_count;
-  return i;
-}
-
-void other_work()
+void more_work()
 {
   chz::sleep<chz::Unit::us>(1);
   ++work_count;
@@ -36,20 +29,18 @@ void hihi_work(int)
 
 void threadpool_demo()
 {
-  static unsigned iterations = 0;
-  using namespace std::chrono;
-  mtz::Pool pool;
-  pool.work();
-
   std::cout << "\033[H\033[J";
+
+  static unsigned iterations = 0;
+  mtz::Pool pool;
   
+  std::future<int> future;
   for (auto measurement : chz::Measure())
   {
     for (unsigned k = 10000; k; --k)
     {
-      auto f1 = pool.push(some_work);
-      pool.push(other_work);
-      auto f2 = pool.push(more_work, 1);
+      future = pool.push(some_work);
+      pool.push(more_work);
       pool.push(hihi_work, 1);
     }
     
@@ -94,54 +85,39 @@ void parfor_demo()
 {
   std::cout << "\033[H\033[J";
 
-  auto vector = std::vector<int>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  static auto vector = std::vector<int>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-  std::cout << "sequential iteration:\n";
-  CHZ_MEASURE()
+  CHZ_MEASURE(", sequential iteration took: %ms")
+  for (int& value : vector)
   {
-    for (int& value : vector)
-    {
-      chz::sleep(1);
-      std::cout << value;
-    }
-    std::cout << '\n';
-  }
-
-  static mtz::Pool pool;
-
-  std::cout << "\nparallel iteration:\n";
-  CHZ_MEASURE()
-  {
-    pool.parfor(int& value, vector)
-    {
-      chz::sleep(1);
-      std::cout << value;
-    };
-    std::cout << '\n';
+    chz::sleep(2);
+    std::cout << value;
   }
   
-  std::cout << "\nsequential indexing:\n";
-  CHZ_MEASURE()
+  CHZ_MEASURE(", sequential indexing took:  %ms")
+  for (size_t k = 0; k < vector.size(); ++k)
   {
-    for (size_t k = 0; k < vector.size(); ++k)
-    {
-      chz::sleep(2);
-      std::cout << vector[k];
-    }
-    std::cout << '\n';
+    chz::sleep(2);
+    std::cout << vector[k];
   }
 
-  std::cout << "\nparallel indexing:\n";
-  CHZ_MEASURE()
-  {
-    pool.parfor(size_t k, 0, vector.size())
-    {
-      chz::sleep(2);
-      std::cout << vector[k];
-    };
-    std::cout << '\n';
-  }
+  mtz::Pool pool;
 
+  CHZ_MEASURE(", parallel iteration took:   %ms")
+  pool.parfor(int& value, vector)
+  {
+    chz::sleep(2);
+    std::cout << value;
+  };
+
+  CHZ_MEASURE(", parallel indexing took:    %ms")
+  pool.parfor(size_t k, 0, vector.size())
+  {
+    chz::sleep(2);
+    std::cout << vector[k];
+  };
+
+  std::cout << "press enter to continue...\n";
   std::cin.get();
 }
 
@@ -151,8 +127,8 @@ int main()
   {
     threadpool_demo();
 
-    // cyclic_demo();
+    cyclic_demo();
 
-    // parfor_demo();
+    parfor_demo();
   }
 }
