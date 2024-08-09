@@ -266,17 +266,17 @@ namespace mtz
     template<std::chrono::nanoseconds::rep PERIOD>
     void _cyclic<PERIOD>::_loop()
     {
-      std::chrono::high_resolution_clock::time_point previous = {};
-      std::chrono::high_resolution_clock::time_point now;
-      std::chrono::nanoseconds::rep                  elapsed;
+      std::chrono::high_resolution_clock::time_point last = {};
+      std::chrono::high_resolution_clock::time_point time;
+      std::chrono::nanoseconds::rep                  span;
 
       while (_alive)
       {
-        now     = std::chrono::high_resolution_clock::now();
-        elapsed = std::chrono::nanoseconds{now - previous}.count();
-        if (elapsed >= PERIOD)
+        time = std::chrono::high_resolution_clock::now();
+        span = std::chrono::nanoseconds{time - last}.count();
+        if (span >= PERIOD)
         {
-          previous = now;
+          last = time;
           _work();
         }
       }
