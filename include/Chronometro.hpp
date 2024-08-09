@@ -10,27 +10,20 @@ MIT License
 
 Copyright (c) 2023 Justin Asselin (juste-injuste)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 -----versions-----------------------------------------------------------------------------------------------------------
-
-Version 0.1.0 - Initial release
 
 -----description--------------------------------------------------------------------------------------------------------
 
@@ -351,8 +344,8 @@ namespace chz
   }
 //----------------------------------------------------------------------------------------------------------------------
 # undef  CHZ_MEASURE
-# define CHZ_MEASURE(...)                  _chz_impl_MEASURE_PROX(__LINE__, __VA_ARGS__)
-# define _chz_impl_MEASURE_PROX(LINE, ...) _chz_impl_MEASURE_IMPL(LINE,     __VA_ARGS__)
+# define CHZ_MEASURE(...)                  _chz_impl_MEASURE_PRXY(__LINE__, __VA_ARGS__)
+# define _chz_impl_MEASURE_PRXY(LINE, ...) _chz_impl_MEASURE_IMPL(LINE,     __VA_ARGS__)
 # define _chz_impl_MEASURE_IMPL(LINE, ...)                  \
     for (chz::Measure _chz_impl_MEASURE##LINE{__VA_ARGS__}; \
       chz::_impl::_backdoor::good(_chz_impl_MEASURE##LINE); \
@@ -360,7 +353,6 @@ namespace chz
 //----------------------------------------------------------------------------------------------------------------------
   class Stopwatch
   {
-    class _guard;
   public:    
     _chz_impl_NODISCARD_REASON("split: not using the return value makes no sens.")
     inline // return split time
@@ -379,8 +371,10 @@ namespace chz
     inline // resume time measurement
     void start() noexcept;
 
+    class Guard;
+
     inline // RAII-style scoped pause/start
-    auto avoid() noexcept -> _guard;
+    auto avoid() noexcept -> Guard;
     
   private:
     bool                      _paused         = false;
@@ -418,7 +412,7 @@ namespace chz
     void start() noexcept;
 
     inline // scoped pause/start of measurement
-    auto avoid() noexcept -> decltype(Stopwatch().avoid());
+    auto avoid() noexcept -> Stopwatch::Guard;
 
   private:
     const unsigned    _iterations = 1;
@@ -449,38 +443,38 @@ namespace chz
   void sleep<Unit::automatic>(unsigned long long) noexcept = delete;
 //----------------------------------------------------------------------------------------------------------------------
 # undef  CHZ_ONLY_EVERY
-# define CHZ_ONLY_EVERY(MS)                  _chz_impl_ONLY_EVERY_PROX(__LINE__, MS)
-# define _chz_impl_ONLY_EVERY_PROX(line, MS) _chz_impl_ONLY_EVERY_IMPL(line,     MS)
-# define _chz_impl_ONLY_EVERY_IMPL(line, MS)                                               \
-    if ([]{                                                                                \
-      static_assert(MS > 0, "CHZ_ONLY_EVERY: 'MS' must be a non-zero positive number.");   \
-      constexpr auto _chz_impl_diff##line = std::chrono::nanoseconds{(MS)*1000000};        \
-      static chz::_impl::_clock::time_point _chz_impl_goal##line = {};                       \
-      if (chz::_impl::_clock::now() > _chz_impl_goal##line)                                \
-      {                                                                                    \
-        _chz_impl_goal##line = chz::_impl::_clock::now() + _chz_impl_diff##line;           \
-        return false;                                                                      \
-      }                                                                                    \
-      return true;                                                                         \
+# define CHZ_ONLY_EVERY(MS)                  _chz_impl_ONLY_EVERY_PRXY(__LINE__, MS)
+# define _chz_impl_ONLY_EVERY_PRXY(LINE, MS) _chz_impl_ONLY_EVERY_IMPL(LINE,     MS)
+# define _chz_impl_ONLY_EVERY_IMPL(LINE, MS)                                             \
+    if ([]{                                                                              \
+      static_assert(MS > 0, "CHZ_ONLY_EVERY: 'MS' must be a non-zero positive number."); \
+      constexpr auto _chz_impl_DIFF##LINE = std::chrono::nanoseconds(MS*1000000);        \
+      static chz::_impl::_clock::time_point _chz_impl_GOAL##LINE = {};                   \
+      if (chz::_impl::_clock::now() > _chz_impl_GOAL##LINE)                              \
+      {                                                                                  \
+        _chz_impl_GOAL##LINE = chz::_impl::_clock::now() + _chz_impl_DIFF##LINE;         \
+        return false;                                                                    \
+      }                                                                                  \
+      return true;                                                                       \
     }()) {} else
 //----------------------------------------------------------------------------------------------------------------------
 # undef  CHZ_LOOP_FOR
-# define CHZ_LOOP_FOR(N)                  _chz_impl_LOOP_FOR_PROX(__LINE__, N)
-# define _chz_impl_LOOP_FOR_PROX(line, N) _chz_impl_LOOP_FOR_IMPL(line,     N)
-# define _chz_impl_LOOP_FOR_IMPL(line, N)                                            \
-    for (unsigned long long _chz_impl_loop_for##line = [&]{                          \
+# define CHZ_LOOP_FOR(N)                  _chz_impl_LOOP_FOR_PRXY(__LINE__, N)
+# define _chz_impl_LOOP_FOR_PRXY(LINE, N) _chz_impl_LOOP_FOR_IMPL(LINE,     N)
+# define _chz_impl_LOOP_FOR_IMPL(LINE, N)                                            \
+    for (unsigned long long _chz_impl_LOOP_FOR##LINE = [&]{                          \
       static_assert(N > 0, "CHZ_LOOP_FOR: 'N' must be a non-zero positive number."); \
-      return N; }(); _chz_impl_loop_for##line; --_chz_impl_loop_for##line)
+      return N; }(); _chz_impl_LOOP_FOR##LINE; --_chz_impl_LOOP_FOR##LINE)
 //----------------------------------------------------------------------------------------------------------------------  
 # undef  CHZ_BREAK_AFTER
-# define CHZ_BREAK_AFTER(N)                  _chz_impl_BREAK_AFTER_PROX(__LINE__, N)
-# define _chz_impl_BREAK_AFTER_PROX(line, N) _chz_impl_BREAK_AFTER_IMPL(line,     N)
-# define _chz_impl_BREAK_AFTER_IMPL(line, N)                                            \
+# define CHZ_BREAK_AFTER(N)                  _chz_impl_BREAK_AFTER_PRXY(__LINE__, N)
+# define _chz_impl_BREAK_AFTER_PRXY(LINE, N) _chz_impl_BREAK_AFTER_IMPL(LINE,     N)
+# define _chz_impl_BREAK_AFTER_IMPL(LINE, N)                                            \
     if ([]{                                                                             \
       static_assert(N > 0, "CHZ_BREAK_AFTER: 'N' must be a non-zero positive number."); \
-      static unsigned long long _chz_impl_break_after##line = N;                        \
-      if (_chz_impl_break_after##line == 0) _chz_impl_break_after##line = N;            \
-      return --_chz_impl_break_after##line;                                             \
+      static unsigned long long _chz_impl_BREAK_AFTER##LINE = N;                        \
+      if (_chz_impl_BREAK_AFTER##LINE == 0) _chz_impl_BREAK_AFTER##LINE = N;            \
+      return --_chz_impl_BREAK_AFTER##LINE;                                             \
     }()) {} else break
 //----------------------------------------------------------------------------------------------------------------------
   class Measure::Iteration final
@@ -497,7 +491,7 @@ namespace chz
     void start() noexcept;
 
     inline // scoped pause/start of measurement
-    auto avoid() noexcept -> decltype(Stopwatch().avoid());
+    auto avoid() noexcept -> Stopwatch::Guard;
   private:
     inline Iteration(unsigned current_iteration, Measure* measurement) noexcept;
     Measure* const _measurement;
@@ -521,20 +515,20 @@ namespace chz
     };
   }
 //----------------------------------------------------------------------------------------------------------------------
-  class Stopwatch::_guard final
+  class Stopwatch::Guard final
   {
     friend Stopwatch;
   private:
     Stopwatch* const _stopwatch;
 
-    _guard(Stopwatch* const stopwatch_) noexcept :
+    Guard(Stopwatch* const stopwatch_) noexcept :
       _stopwatch(stopwatch_)
     {
       _stopwatch->pause();
     }
 
   public:
-    ~_guard() noexcept
+    ~Guard() noexcept
     {
       _stopwatch->start();
     }
@@ -547,7 +541,7 @@ namespace chz
     auto split_duration = _duration_split;
     _duration_split     = {};
 
-    if _chz_impl_EXPECTED(!_paused)
+    if _chz_impl_EXPECTED(not _paused)
     {
       _duration_total += now - _previous;
       split_duration  += now - _previous;
@@ -564,7 +558,7 @@ namespace chz
 
     auto total_duration = _duration_total;
 
-    if _chz_impl_EXPECTED(!_paused)
+    if _chz_impl_EXPECTED(not _paused)
     {
       total_duration += now - _previous;
 
@@ -607,9 +601,9 @@ namespace chz
     }
   }
 
-  auto Stopwatch::avoid() noexcept -> _guard
+  auto Stopwatch::avoid() noexcept -> Guard
   {
-    return _guard(this);
+    return Guard(this);
   }
 //----------------------------------------------------------------------------------------------------------------------
   class Measure::_iterator final
@@ -677,7 +671,7 @@ namespace chz
     _stopwatch.start();
   }
 
-  auto Measure::avoid() noexcept -> decltype(Stopwatch().avoid())
+  auto Measure::avoid() noexcept -> Stopwatch::Guard
   {
     return _stopwatch.avoid();
   }
@@ -751,7 +745,7 @@ namespace chz
     _measurement->start();
   }
 
-  auto Measure::Iteration::avoid() noexcept -> decltype(Stopwatch().avoid())
+  auto Measure::Iteration::avoid() noexcept -> Stopwatch::Guard
   {
     return _measurement->avoid();
   }
