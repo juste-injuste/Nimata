@@ -353,38 +353,16 @@ namespace mtz
     template<typename F, typename... A>
     using _void = _if_void<decltype(std::declval<F&>()(std::declval<A&>()...))>;
 
-    template<bool D, typename F, typename... A>
-    using _type = typename std::conditional<
-      D,
-      void,
-      typename std::conditional<
-        std::is_same<decltype(std::declval<F&>()(std::declval<A&>()...)), void>::value,
-        void,
-        std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>
-      >::type
-    >::type;
-
-    template<typename T>
-    struct _has_iter_funcs final
-    {
-    private:
-      template<typename T_>
-      static
-      auto _impl(int) -> decltype
-      (
-        void(  begin(std::declval<T_&>()) != end(std::declval<T_&>())),
-        void(++begin(std::declval<T_&>())),
-        void( *begin(std::declval<T_&>())),
-        std::true_type{}
-      );
-
-      template<typename T_>
-      static
-      auto _impl(...) -> std::false_type;
-
-    public:
-      static constexpr bool value = decltype(_impl<T>(0)){};
-    };
+    // template<bool D, typename F, typename... A>
+    // using _type = typename std::conditional<
+    //   D,
+    //   void,
+    //   typename std::conditional<
+    //     std::is_same<decltype(std::declval<F&>()(std::declval<A&>()...)), void>::value,
+    //     void,
+    //     std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>
+    //   >::type
+    // >::type;
 
     template<typename T>
     struct _has_iter_meths final
@@ -409,6 +387,28 @@ namespace mtz
     };
 
     template<typename T>
+    struct _has_iter_funcs final
+    {
+    private:
+      template<typename T_>
+      static
+      auto _impl(int) -> decltype
+      (
+        void(  begin(std::declval<T_&>()) != end(std::declval<T_&>())),
+        void(++begin(std::declval<T_&>())),
+        void( *begin(std::declval<T_&>())),
+        std::true_type{}
+      );
+
+      template<typename T_>
+      static
+      auto _impl(...) -> std::false_type;
+
+    public:
+      static constexpr bool value = decltype(_impl<T>(0)){};
+    };
+
+    template<typename T>
     struct _is_iterable final
     {
     public:
@@ -416,17 +416,9 @@ namespace mtz
     };
 
     template<typename T>
-    auto _begin(T) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value != true
-      and
-      _has_iter_funcs<T>::value != true
-    >::type;
-
-    template<typename T>
     auto _begin(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value == true
-      and
-      _has_iter_funcs<T>::value != true,
+      _has_iter_meths<T>::value
+      and not _has_iter_funcs<T>::value,
       decltype(std::declval<T&>().begin())
     >::type
     {
@@ -435,38 +427,17 @@ namespace mtz
 
     template<typename T>
     auto _begin(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value != true
-      and
-      _has_iter_funcs<T>::value == true,
+      _has_iter_funcs<T>::value,
       decltype(begin(std::declval<T&>()))
     >::type
     {
       return begin(std::forward<T>(iterable_));
     }
-
-    template<typename T>
-    auto _begin(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value == true
-      and
-      _has_iter_funcs<T>::value == true,
-      decltype(begin(std::declval<T&>()))
-    >::type
-    {
-      return begin(std::forward<T>(iterable_));
-    }
-
-    template<typename T>
-    auto _end(T) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value != true
-      and
-      _has_iter_funcs<T>::value != true
-    >::type;
 
     template<typename T>
     auto _end(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value == true
-      and
-      _has_iter_funcs<T>::value != true,
+      _has_iter_meths<T>::value
+      and not _has_iter_funcs<T>::value,
       decltype(std::declval<T&>().end())
     >::type
     {
@@ -475,21 +446,9 @@ namespace mtz
 
     template<typename T>
     auto _end(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value != true
-      and
-      _has_iter_funcs<T>::value == true,
+      _has_iter_funcs<T>::value,
       decltype(end(std::declval<T&>()))
     >::type
-    {
-      return end(std::forward<T>(iterable_));
-    }
-
-    template<typename T>
-    auto _end(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value == true
-      and
-      _has_iter_funcs<T>::value == true,
-    decltype(end(std::declval<T&>()))>::type
     {
       return end(std::forward<T>(iterable_));
     }
