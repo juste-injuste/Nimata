@@ -292,42 +292,15 @@ namespace mtz
       }
     }
 
-    template<typename F>
-    constexpr
-    auto _to_bool(const F& function) noexcept
-      -> typename std::enable_if<std::is_convertible<F, bool>::value == true, bool>::type
-    {
-      return static_cast<bool>(function);
-    }
-
-    template<typename F>
-    constexpr
-    auto _to_bool(const F&) noexcept
-      -> typename std::enable_if<std::is_convertible<F, bool>::value != true, bool>::type
-    {
-      return true;
-    }
-
     template<typename T>
-    using _if_type = typename std::enable_if<not std::is_same<T, void>::value, T>::type;
-
-    template<typename F, typename... A>
-    using _future = std::future<_if_type<decltype(std::declval<F>()(A()...))>>;
-
-    template<typename F, typename... A>
-    using _void = typename std::enable_if<std::is_same<decltype(std::declval<F>()(A()...)), void>::value, void>::type;
-
-    template<typename T>
-    struct _is_iterable final
+    struct _can_convert_to_bool final
     {
     private:
       template<typename T_>
       static
       auto _impl(int) -> decltype
       (
-        void(  begin(T_()) != end(T_())),
-        void(++begin(T_())             ),
-        void( *begin(T_())             ),
+        void(static_cast<bool>(std::declval<T_&>())),
         std::true_type{}
       );
 
@@ -339,14 +312,196 @@ namespace mtz
       static constexpr bool value = decltype(_impl<T>(0)){};
     };
 
+    template<typename T, typename R = bool>
+    using _if_convert_to_bool = typename std::enable_if<
+      _can_convert_to_bool<T>::value == true
+      and std::is_function<T>::value != true
+    , R>::type;
+
+    template<typename T, typename R = bool>
+    using _no_convert_to_bool = typename std::enable_if<
+      _can_convert_to_bool<T>::value != true
+      or  std::is_function<T>::value == true
+    , R>::type;
+
+    template<typename F>
+    constexpr
+    auto _to_bool(const F& function_) noexcept -> _if_convert_to_bool<F>
+    {
+      return static_cast<bool>(function_);
+    }
+
+    template<typename F>
+    constexpr
+    auto _to_bool(const F& function_) noexcept -> _no_convert_to_bool<F>
+    {
+      return true;
+    }
+
+    template<typename type>
+    using _is_void = typename std::is_same<type, void>::value;
+
+    template<typename type>
+    using _if_type = typename std::enable_if<std::is_same<type, void>::value == false, type>::type;
+
+    template<typename type>
+    using _if_void = typename std::enable_if<std::is_same<type, void>::value != false, void>::type;
+
+    template<typename F, typename... A>
+    using _future = std::future<_if_type<decltype(std::declval<F&>()(std::declval<A&>()...))>>;
+
+    template<typename F, typename... A>
+    using _void = _if_void<decltype(std::declval<F&>()(std::declval<A&>()...))>;
+
+    template<bool D, typename F, typename... A>
+    using _type = typename std::conditional<
+      D,
+      void,
+      typename std::conditional<
+        std::is_same<decltype(std::declval<F&>()(std::declval<A&>()...)), void>::value,
+        void,
+        std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>
+      >::type
+    >::type;
+
+    template<typename T>
+    struct _has_iter_funcs final
+    {
+    private:
+      template<typename T_>
+      static
+      auto _impl(int) -> decltype
+      (
+        void(  begin(std::declval<T_&>()) != end(std::declval<T_&>())),
+        void(++begin(std::declval<T_&>())),
+        void( *begin(std::declval<T_&>())),
+        std::true_type{}
+      );
+
+      template<typename T_>
+      static
+      auto _impl(...) -> std::false_type;
+
+    public:
+      static constexpr bool value = decltype(_impl<T>(0)){};
+    };
+
+    template<typename T>
+    struct _has_iter_meths final
+    {
+    private:
+      template<typename T_>
+      static
+      auto _impl(int) -> decltype
+      (
+        void(  std::declval<T_&>().begin() != std::declval<T_&>().end()),
+        void(++std::declval<T_&>().begin()),
+        void( *std::declval<T_&>().begin()),
+        std::true_type{}
+      );
+
+      template<typename T_>
+      static
+      auto _impl(...) -> std::false_type;
+
+    public:
+      static constexpr bool value = decltype(_impl<T>(0)){};
+    };
+
+    template<typename T>
+    struct _is_iterable final
+    {
+    public:
+      static constexpr bool value = _has_iter_funcs<T>::value || _has_iter_meths<T>::value;
+    };
+
+    template<typename T>
+    auto _begin(T) noexcept -> typename std::enable_if<
+      _has_iter_meths<T>::value != true
+      and
+      _has_iter_funcs<T>::value != true
+    >::type;
+
+    template<typename T>
+    auto _begin(T&& iterable_) noexcept -> typename std::enable_if<
+      _has_iter_meths<T>::value == true
+      and
+      _has_iter_funcs<T>::value != true,
+      decltype(std::declval<T&>().begin())
+    >::type
+    {
+      return iterable_.begin();
+    }
+
+    template<typename T>
+    auto _begin(T&& iterable_) noexcept -> typename std::enable_if<
+      _has_iter_meths<T>::value != true
+      and
+      _has_iter_funcs<T>::value == true,
+      decltype(begin(std::declval<T&>()))
+    >::type
+    {
+      return begin(std::forward<T>(iterable_));
+    }
+
+    template<typename T>
+    auto _begin(T&& iterable_) noexcept -> typename std::enable_if<
+      _has_iter_meths<T>::value == true
+      and
+      _has_iter_funcs<T>::value == true,
+      decltype(begin(std::declval<T&>()))
+    >::type
+    {
+      return begin(std::forward<T>(iterable_));
+    }
+
+    template<typename T>
+    auto _end(T) noexcept -> typename std::enable_if<
+      _has_iter_meths<T>::value != true
+      and
+      _has_iter_funcs<T>::value != true
+    >::type;
+
+    template<typename T>
+    auto _end(T&& iterable_) noexcept -> typename std::enable_if<
+      _has_iter_meths<T>::value == true
+      and
+      _has_iter_funcs<T>::value != true,
+      decltype(std::declval<T&>().end())
+    >::type
+    {
+      return iterable_.end();
+    }
+
+    template<typename T>
+    auto _end(T&& iterable_) noexcept -> typename std::enable_if<
+      _has_iter_meths<T>::value != true
+      and
+      _has_iter_funcs<T>::value == true,
+      decltype(end(std::declval<T&>()))
+    >::type
+    {
+      return end(std::forward<T>(iterable_));
+    }
+
+    template<typename T>
+    auto _end(T&& iterable_) noexcept -> typename std::enable_if<
+      _has_iter_meths<T>::value == true
+      and
+      _has_iter_funcs<T>::value == true,
+    decltype(end(std::declval<T&>()))>::type
+    {
+      return end(std::forward<T>(iterable_));
+    }
+
     template<typename T, bool = _is_iterable<T>::value>
     struct _iter_type;
     
     template<typename T>
     struct _iter_type<T, true> final
     {
-      using iter = decltype( begin(std::declval<T&>()));
-      using type = decltype(*begin(std::declval<T&>()));
+      using iter = decltype( _begin(std::declval<T&>()));
+      using type = decltype(*_begin(std::declval<T&>()));
       
       static constexpr
       type _dereference(iter& data) noexcept
@@ -387,11 +542,27 @@ namespace mtz
     template<typename F, typename... A>
     _mtz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value.")
     inline // add work that has a return value to queue
-    auto push(F function, A... arguments) noexcept -> _impl::_future<F, A...>;
+    auto push(F&& function, A&&... arguments) noexcept -> _impl::_future<F, A...>;
 
     template<typename F, typename... A>
     inline // add work that does not have a return value to queue
-    auto push(F function, A... arguments) noexcept -> _impl::_void<F, A...>;
+    auto push(F&& function, A&&... arguments) noexcept -> _impl::_void<F, A...>;
+
+    // template<bool detached, typename F, typename... A>
+    // inline // add work that has a return value to queue
+    // auto push(F&& function, A&&... arguments) noexcept -> _impl::_type<detached, F, A...>;
+
+
+    // det void -> void
+    // att void -> fut
+    // det type -> void
+    // att type -> fut
+
+    // 0 0 -> 0
+    // 1 0 -> 1
+    // 0 1 -> 0
+    // 1 1 -> 1
+
 
     inline // waits for all work to be done
     void wait() const noexcept;
@@ -408,9 +579,9 @@ namespace mtz
     inline // parallel for-loop with index range = ['from', 'past')
     auto parfor(size_t from, size_t past) noexcept -> _impl::_parfor<size_t>;
     
-    template<typename iterable>
+    template<typename iterable, typename _iterable = typename std::remove_reference<iterable>::type>
     inline // parallel for-loop over iterable
-    auto parfor(iterable& data) noexcept -> _impl::_parfor<iterable>;
+    auto parfor(iterable&& data) noexcept -> _impl::_parfor<_iterable>;
 
     inline // get amount of workers
     auto size() const noexcept -> unsigned;
@@ -478,13 +649,13 @@ namespace mtz
   }
   
   template<typename F, typename... A>
-  auto Pool::push(F function_, A... arguments_) noexcept -> _impl::_future<F, A...>
+  auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _impl::_future<F, A...>
   {
     using R = decltype(function_(arguments_...));
 
     std::future<R> future;
 
-    if _mtz_impl_EXPECTED(function_)
+    if _mtz_impl_EXPECTED(_impl::_to_bool(function_))
     {
       auto promise = new std::promise<R>;
       
@@ -502,7 +673,7 @@ namespace mtz
   }
   
   template<typename F, typename... A>
-  auto Pool::push(F function_, A... arguments_) noexcept -> _impl::_void<F, A...>
+  auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _impl::_void<F, A...>
   {
     if _mtz_impl_EXPECTED(_impl::_to_bool(function_))
     {
@@ -573,10 +744,10 @@ namespace mtz
     return _impl::_parfor<size_t>(this, 0, size_);
   }
   
-  template<typename iterable>
-  auto Pool::parfor(iterable& iterable_) noexcept -> _impl::_parfor<iterable>
+  template<typename iterable, typename _iterable>
+  auto Pool::parfor(iterable&& iterable_) noexcept -> _impl::_parfor<_iterable>
   {
-    return _impl::_parfor<iterable>(this, begin(iterable_), end(iterable_));
+    return _impl::_parfor<_iterable>(this, _impl::_begin(iterable_), _impl::_end(iterable_));
   }
   
 # define parfor(PARFOR_VARIABLE_DECLARATION, ...) \
