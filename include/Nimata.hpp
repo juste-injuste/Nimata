@@ -38,20 +38,21 @@ SOFTWARE.
 #if defined(__cplusplus) and (__cplusplus >= 201103L)
 #if defined(__STDCPP_THREADS__)
 //---necessary standard libraries---------------------------------------------------------------------------------------
-#include <thread>     // for std::thread, std::this_thread::yield, std::this_thread::sleep_for
-#include <mutex>      // for std::mutex, std::lock_guard
-#include <atomic>     // for std::atomic
-#include <future>     // for std::future, std::promise
-#include <functional> // for std::function
-#include <queue>      // for std::queue
-#include <chrono>     // for std::chrono::*
-#include <ostream>    // for std::ostream
-#include <iostream>   // for std::clog
-#include <memory>     // for std::unique_ptr
-#include <utility>    // for std::declval
+#include <thread>      // for std::thread, std::this_thread::yield, std::this_thread::sleep_for
+#include <mutex>       // for std::mutex, std::lock_guard
+#include <atomic>      // for std::atomic
+#include <future>      // for std::future, std::promise
+#include <functional>  // for std::function
+#include <queue>       // for std::queue
+#include <chrono>      // for std::chrono::nanoseconds, std::chrono::high_resolution_clock
+#include <ostream>     // for std::ostream
+#include <iostream>    // for std::clog
+#include <memory>      // for std::unique_ptr
+#include <utility>     // for std::declval
+#include <type_traits> // for std::is_function, std::is_same, std::enable_if, std:: true_type, std::false_type
 //---conditionally necessary standard libraries-------------------------------------------------------------------------
 #if defined(MTZ_DEBUGGING)
-# include <cstdio>    // for std::sprintf
+# include <cstdio>     // for std::sprintf
 #endif
 //---Nimata library-----------------------------------------------------------------------------------------------------
 namespace mtz
@@ -535,9 +536,9 @@ namespace mtz
     inline // parallel for-loop with index range = ['from', 'past')
     auto parfor(size_t from, size_t past) noexcept -> _impl::_parfor<size_t>;
     
-    template<typename iterable, typename _iterable = typename std::remove_reference<iterable>::type>
+    template<typename iterable>
     inline // parallel for-loop over iterable
-    auto parfor(iterable&& data) noexcept -> _impl::_parfor<_iterable>;
+    auto parfor(iterable&& data) noexcept -> _impl::_parfor<iterable>;
 
     inline // get amount of workers
     auto size() const noexcept -> unsigned;
@@ -580,11 +581,9 @@ namespace mtz
         {
           std::lock_guard<std::mutex> pool_queue_lock{_pool->_queue_mtx};
 
-          for (iterator k = _from; k != _past; ++k)
+          for (iterator iter = _from; iter != _past; ++iter)
           {
-            _pool->_queue.push(
-              [=]{ body(_iter_type<T>::_dereference(k)); }
-            );
+            _pool->_queue.push([=]{ body(_iter_type<T>::_dereference(iter)); });
           }
         }
 
@@ -700,10 +699,10 @@ namespace mtz
     return _impl::_parfor<size_t>(this, 0, size_);
   }
   
-  template<typename iterable, typename _iterable>
-  auto Pool::parfor(iterable&& iterable_) noexcept -> _impl::_parfor<_iterable>
+  template<typename iterable>
+  auto Pool::parfor(iterable&& iterable_) noexcept -> _impl::_parfor<iterable>
   {
-    return _impl::_parfor<_iterable>(this, _impl::_begin(iterable_), _impl::_end(iterable_));
+    return _impl::_parfor<iterable>(this, _impl::_begin(iterable_), _impl::_end(iterable_));
   }
   
 # define parfor(PARFOR_VARIABLE_DECLARATION, ...) \
