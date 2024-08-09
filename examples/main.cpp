@@ -18,8 +18,8 @@ void threadpool_demo()
 {
   std::cout << fmz::Clear();
 
-  static unsigned iterations = 0;
-  mtz::Pool pool;
+  static unsigned  iterations = 0;
+  static mtz::Pool pool;
   
   std::future<int> future;
   CHZ_MEASURE()
@@ -29,6 +29,7 @@ void threadpool_demo()
       future = pool.push(work_1);
       pool.push(work_2);
       pool.push(work_3, 1);
+      // pool.push(std::function<void()>()); // would not be a issue as tasks are checked for validity.
     }
     
     pool.wait();
@@ -73,7 +74,8 @@ void parfor_demo()
 {
   std::cout << fmz::Clear();
 
-  static auto vector = std::vector<int>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  static std::vector<int> vector = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  static mtz::Pool        pool;
 
   CHZ_MEASURE(", sequential iteration took: %ms")
   for (int& value : vector)
@@ -89,8 +91,6 @@ void parfor_demo()
     std::cout << vector[k];
   }
 
-  mtz::Pool pool;
-
   CHZ_MEASURE(", parallel iteration took:   %ms")
   pool.parfor(int& value, vector)
   {
@@ -103,6 +103,18 @@ void parfor_demo()
   {
     chz::sleep(2);
     std::cout << vector[k];
+  };
+
+  CHZ_MEASURE("parallel anonymous iterating took:    %ms")
+  pool.parfor(..., vector)
+  {
+    chz::sleep(2);
+  };
+
+  CHZ_MEASURE("parallel anonymous \"indexing\" took:    %ms")
+  pool.parfor(..., 0, vector.size())
+  {
+    chz::sleep(2);
   };
 
   std::cout << "press enter to continue...\n";
