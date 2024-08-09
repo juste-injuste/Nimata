@@ -315,14 +315,14 @@ namespace mtz
     template<typename T, typename R = bool>
     using _if_convert_to_bool = typename std::enable_if<
       _can_convert_to_bool<T>::value == true
-      and std::is_function<T>::value != true
-    , R>::type;
+      and std::is_function<T>::value != true, R
+    >::type;
 
     template<typename T, typename R = bool>
     using _no_convert_to_bool = typename std::enable_if<
       _can_convert_to_bool<T>::value != true
-      or  std::is_function<T>::value == true
-    , R>::type;
+      or  std::is_function<T>::value == true, R
+    >::type;
 
     template<typename F>
     constexpr
@@ -339,16 +339,13 @@ namespace mtz
     }
 
     template<typename type>
-    using _is_void = typename std::is_same<type, void>::value;
-
-    template<typename type>
     using _if_type = typename std::enable_if<std::is_same<type, void>::value == false, type>::type;
-
-    template<typename type>
-    using _if_void = typename std::enable_if<std::is_same<type, void>::value != false, void>::type;
 
     template<typename F, typename... A>
     using _future = std::future<_if_type<decltype(std::declval<F&>()(std::declval<A&>()...))>>;
+
+    template<typename type>
+    using _if_void = typename std::enable_if<std::is_same<type, void>::value != false, void>::type;
 
     template<typename F, typename... A>
     using _void = _if_void<decltype(std::declval<F&>()(std::declval<A&>()...))>;
