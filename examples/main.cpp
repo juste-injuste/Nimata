@@ -105,7 +105,6 @@ void parfor_demo()
     std::cout << vector[k];
   };
 
-  CHZ_MEASURE("parallel anonymous iterating took:    %ms")
   std::cout << "press enter to continue...\n";
   std::cin.get();
 }
