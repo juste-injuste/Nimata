@@ -106,17 +106,6 @@ void parfor_demo()
   };
 
   CHZ_MEASURE("parallel anonymous iterating took:    %ms")
-  pool.parfor(..., vector)
-  {
-    chz::sleep(2);
-  };
-
-  CHZ_MEASURE("parallel anonymous \"indexing\" took:    %ms")
-  pool.parfor(..., 0, vector.size())
-  {
-    chz::sleep(2);
-  };
-
   std::cout << "press enter to continue...\n";
   std::cin.get();
 }
