@@ -314,27 +314,27 @@ namespace mtz
     };
 
     template<typename T, typename R = bool>
-    using _if_convert_to_bool = typename std::enable_if<
+    using _if_convert_validate_callable = typename std::enable_if<
       _can_convert_to_bool<T>::value == true
       and std::is_function<T>::value != true, R
     >::type;
 
     template<typename T, typename R = bool>
-    using _no_convert_to_bool = typename std::enable_if<
+    using _no_convert_validate_callable = typename std::enable_if<
       _can_convert_to_bool<T>::value != true
       or  std::is_function<T>::value == true, R
     >::type;
 
     template<typename F>
     constexpr
-    auto _to_bool(const F& function_) noexcept -> _if_convert_to_bool<F>
+    auto _validate_callable(const F& function_) noexcept -> _if_convert_validate_callable<F>
     {
       return static_cast<bool>(function_);
     }
 
     template<typename F>
     constexpr
-    auto _to_bool(const F& function_) noexcept -> _no_convert_to_bool<F>
+    auto _validate_callable(const F& function_) noexcept -> _no_convert_validate_callable<F>
     {
       return true;
     }
@@ -351,16 +351,12 @@ namespace mtz
     template<typename F, typename... A>
     using _void = _if_void<decltype(std::declval<F&>()(std::declval<A&>()...))>;
 
-    // template<bool D, typename F, typename... A>
-    // using _type = typename std::conditional<
-    //   D,
-    //   void,
-    //   typename std::conditional<
-    //     std::is_same<decltype(std::declval<F&>()(std::declval<A&>()...)), void>::value,
-    //     void,
-    //     std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>
-    //   >::type
-    // >::type;
+    template<bool D, typename F, typename... A>
+    using _type = typename std::conditional<
+      D,
+      void,
+      std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>
+    >::type;
 
     template<typename T>
     struct _has_iter_meths final
@@ -498,28 +494,16 @@ namespace mtz
 
     template<typename F, typename... A>
     _mtz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value.")
-    inline // add work that has a return value to queue
+    inline // add work that has a return value
     auto push(F&& function, A&&... arguments) noexcept -> _impl::_future<F, A...>;
 
     template<typename F, typename... A>
-    inline // add work that does not have a return value to queue
+    inline // add work that does not have a return value
     auto push(F&& function, A&&... arguments) noexcept -> _impl::_void<F, A...>;
 
-    // template<bool detached, typename F, typename... A>
-    // inline // add work that has a return value to queue
-    // auto push(F&& function, A&&... arguments) noexcept -> _impl::_type<detached, F, A...>;
-
-
-    // det void -> void
-    // att void -> fut
-    // det type -> void
-    // att type -> fut
-
-    // 0 0 -> 0
-    // 1 0 -> 1
-    // 0 1 -> 0
-    // 1 1 -> 1
-
+    template<bool D, typename F, typename... A>
+    inline // add work and specify if you want it detached or not
+    auto push(F&& function, A&&... arguments) noexcept -> _impl::_type<D, F, A...>;
 
     inline // waits for all work to be done
     void wait() const noexcept;
@@ -538,7 +522,7 @@ namespace mtz
     
     template<typename iterable>
     inline // parallel for-loop over iterable
-    auto parfor(iterable&& data) noexcept -> _impl::_parfor<iterable>;
+    auto parfor(iterable&& thing) noexcept -> _impl::_parfor<iterable>;
 
     inline // get amount of workers
     auto size() const noexcept -> unsigned;
@@ -560,6 +544,10 @@ namespace mtz
     std::mutex                        _queue_mtx;
     std::queue<std::function<void()>> _queue;
     std::thread                       _assignation_thread{_assign, this};
+    template<typename F, typename... A>
+    void push(std::true_type,  F&& function, A&&... arguments) noexcept;
+    template<typename F, typename... A>
+    auto push(std::false_type, F&& function, A&&... arguments) noexcept -> _impl::_future<F, A...>;
   };
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _impl
@@ -606,11 +594,45 @@ namespace mtz
   template<typename F, typename... A>
   auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _impl::_future<F, A...>
   {
+    return push(
+      std::false_type(),
+      std::forward<F>(function_),
+      std::forward<A>(arguments_)...);
+  }
+  
+  template<typename F, typename... A>
+  auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _impl::_void<F, A...>
+  {
+    return push(
+      std::true_type(),
+      std::forward<F>(function_),
+      std::forward<A>(arguments_)...);
+  }
+
+  template<typename F, typename... A>
+  void Pool::push(std::true_type, F&& function_, A&&... arguments_) noexcept
+  {
+    if _mtz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
+    {
+      std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
+        [=]{ function_(arguments_...); }
+      );
+
+      _mtz_impl_DEBUG("pushed a task with no return value.");
+    }
+    else _mtz_impl_DEBUG("null task pushed.");
+
+    return;
+  }
+
+  template<typename F, typename... A>
+  auto Pool::push(std::false_type, F&& function_, A&&... arguments_) noexcept -> _impl::_future<F, A...>
+  {
     using R = decltype(function_(arguments_...));
 
     std::future<R> future;
 
-    if _mtz_impl_EXPECTED(_impl::_to_bool(function_))
+    if _mtz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
     {
       auto promise = new std::promise<R>;
       
@@ -625,22 +647,6 @@ namespace mtz
     else _mtz_impl_DEBUG("null task pushed.");
 
     return future;
-  }
-  
-  template<typename F, typename... A>
-  auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _impl::_void<F, A...>
-  {
-    if _mtz_impl_EXPECTED(_impl::_to_bool(function_))
-    {
-      std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
-        [=]{ function_(arguments_...); }
-      );
-
-      _mtz_impl_DEBUG("pushed a task with no return value.");
-    }
-    else _mtz_impl_DEBUG("null task pushed.");
-
-    return;
   }
 
   void Pool::wait() const noexcept
@@ -700,9 +706,9 @@ namespace mtz
   }
   
   template<typename iterable>
-  auto Pool::parfor(iterable&& iterable_) noexcept -> _impl::_parfor<iterable>
+  auto Pool::parfor(iterable&& thing_) noexcept -> _impl::_parfor<iterable>
   {
-    return _impl::_parfor<iterable>(this, _impl::_begin(iterable_), _impl::_end(iterable_));
+    return _impl::_parfor<iterable>(this, _impl::_begin(thing_), _impl::_end(thing_));
   }
   
 # define parfor(PARFOR_VARIABLE_DECLARATION, ...) \
