@@ -1,4 +1,3 @@
-#include <chrono>
 #include <iostream>
 #include <atomic>
 
@@ -6,7 +5,6 @@
 #include "../include/Paleta.hpp"
 #include "../include/Nimata.hpp"
 #include "../include/Chronometro.hpp"
-
 
 static std::atomic_uint work_count;
 
@@ -20,7 +18,7 @@ void threadpool_demo()
 
   static unsigned  iterations = 0;
   static stz::Pool pool;
-  
+
   std::future<int> future;
   CHZ_MEASURE()
   {
@@ -55,12 +53,14 @@ void cyclic_demo()
     std::cout << "0%                        100%\n";
   };
 
-  std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+  chz::sleep(1);
 
   MTZ_CYCLIC(5_Hz)
   {
     std::cout << '='; // add 5 '=' to progress bar every second
   };
+
+  chz::sleep(1);
   
   MTZ_CYCLIC(25_Hz)
   {
