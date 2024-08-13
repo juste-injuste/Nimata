@@ -297,7 +297,7 @@ namespace fmz
 
     
 
-  struct Clear {};
+  struct {} clear;
 
   struct Reset {};
 //----------------------------------------------------------------------------------------------------------------------
@@ -595,7 +595,7 @@ namespace fmz
   };
 
   inline
-  std::ostream& operator<<(std::ostream& ostream_, const Clear) noexcept
+  std::ostream& operator<<(std::ostream& ostream_, const decltype(clear)) noexcept
   {
     if ((ostream_.rdbuf() == std::cout.rdbuf()) ||
         (ostream_.rdbuf() == std::cerr.rdbuf()) ||

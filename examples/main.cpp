@@ -16,7 +16,7 @@ void work_3(int) {        ++work_count; }
 
 void threadpool_demo()
 {
-  std::cout << fmz::Clear();
+  std::cout << fmz::clear;
 
   static unsigned  iterations = 0;
   static stz::Pool pool;
@@ -49,7 +49,7 @@ void cyclic_demo()
   MTZ_CYCLIC(1_Hz) // clear screen every second
   {
     static unsigned frame = 0;
-    std::cout << fmz::Clear();
+    std::cout << fmz::clear;
     std::cout << "press enter to continue...\n";
     std::cout << "frame: " << ++frame << "\n";
     std::cout << "0%                        100%\n";
@@ -72,7 +72,7 @@ void cyclic_demo()
 
 void parfor_demo()
 {
-  std::cout << fmz::Clear();
+  std::cout << fmz::clear;
 
   static std::vector<int> vector = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
   static stz::Pool        pool;
