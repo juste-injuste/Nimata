@@ -19,7 +19,7 @@ void threadpool_demo()
   std::cout << fmz::Clear();
 
   static unsigned  iterations = 0;
-  static mtz::Pool pool;
+  static stz::Pool pool;
   
   std::future<int> future;
   CHZ_MEASURE()
@@ -44,7 +44,7 @@ void threadpool_demo()
 
 void cyclic_demo()
 {
-  using namespace mtz::_literals;
+  using namespace stz::_literals;
 
   MTZ_CYCLIC(1_Hz) // clear screen every second
   {
@@ -75,7 +75,7 @@ void parfor_demo()
   std::cout << fmz::Clear();
 
   static std::vector<int> vector = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  static mtz::Pool        pool;
+  static stz::Pool        pool;
 
   CHZ_MEASURE(", sequential iteration took: %ms")
   for (int& value : vector)

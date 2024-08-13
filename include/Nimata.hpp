@@ -55,7 +55,7 @@ SOFTWARE.
 # include <cstdio>     // for std::sprintf
 #endif
 //---Nimata library-----------------------------------------------------------------------------------------------------
-namespace mtz
+namespace stz
 {
   const unsigned MAX_THREADS = std::thread::hardware_concurrency();
 
@@ -88,94 +88,94 @@ namespace mtz
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _impl
   {
-#   define _mtz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
+#   define _stz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
 # if defined(__clang__)
-#   define _mtz_impl_CLANG_IGNORE(WARNING, ...)          \
-      _mtz_impl_PRAGMA(clang diagnostic push)            \
-      _mtz_impl_PRAGMA(clang diagnostic ignored WARNING) \
+#   define _stz_impl_CLANG_IGNORE(WARNING, ...)          \
+      _stz_impl_PRAGMA(clang diagnostic push)            \
+      _stz_impl_PRAGMA(clang diagnostic ignored WARNING) \
       __VA_ARGS__                                        \
-      _mtz_impl_PRAGMA(clang diagnostic pop)
+      _stz_impl_PRAGMA(clang diagnostic pop)
 
-#   define _mtz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
+#   define _stz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
 # elif defined(__GNUC__)
-#   define _mtz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
+#   define _stz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
 
-#   define _mtz_impl_GCC_IGNORE(WARNING, ...)          \
-      _mtz_impl_PRAGMA(GCC diagnostic push)            \
-      _mtz_impl_PRAGMA(GCC diagnostic ignored WARNING) \
+#   define _stz_impl_GCC_IGNORE(WARNING, ...)          \
+      _stz_impl_PRAGMA(GCC diagnostic push)            \
+      _stz_impl_PRAGMA(GCC diagnostic ignored WARNING) \
       __VA_ARGS__                                      \
-      _mtz_impl_PRAGMA(GCC diagnostic pop)
+      _stz_impl_PRAGMA(GCC diagnostic pop)
 # else
-#   define _mtz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
-#   define _mtz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
+#   define _stz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
+#   define _stz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
 #endif
 
 // support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
 # if __cplusplus < 202002L
-#   define _mtz_impl_LIKELY   _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
-#   define _mtz_impl_UNLIKELY _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[unlikely]])
+#   define _stz_impl_LIKELY   _stz_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
+#   define _stz_impl_UNLIKELY _stz_impl_CLANG_IGNORE("-Wc++20-extensions", [[unlikely]])
 # else
-#   define _mtz_impl_LIKELY   [[likely]]
-#   define _mtz_impl_UNLIKELY [[unlikely]]
+#   define _stz_impl_LIKELY   [[likely]]
+#   define _stz_impl_UNLIKELY [[unlikely]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _mtz_impl_LIKELY   [[likely]]
-#   define _mtz_impl_UNLIKELY [[unlikely]]
+#   define _stz_impl_LIKELY   [[likely]]
+#   define _stz_impl_UNLIKELY [[unlikely]]
 # else
-#   define _mtz_impl_LIKELY
-#   define _mtz_impl_UNLIKELY
+#   define _stz_impl_LIKELY
+#   define _stz_impl_UNLIKELY
 # endif
 
 // support from clang 3.9.0 and GCC 4.7.3 onward
 # if defined(__clang__)
-#   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
-#   define _mtz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _mtz_impl_UNLIKELY
-#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
+#   define _stz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _stz_impl_LIKELY
+#   define _stz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _stz_impl_UNLIKELY
+#   define _stz_impl_NODISCARD           __attribute__((warn_unused_result))
 # elif defined(__GNUC__)
-#   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
-#   define _mtz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _mtz_impl_UNLIKELY
-#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
+#   define _stz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _stz_impl_LIKELY
+#   define _stz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _stz_impl_UNLIKELY
+#   define _stz_impl_NODISCARD           __attribute__((warn_unused_result))
 # else
-#   define _mtz_impl_EXPECTED(CONDITION) (CONDITION) _mtz_impl_LIKELY
-#   define _mtz_impl_ABNORMAL(CONDITION) (CONDITION) _mtz_impl_UNLIKELY
-#   define _mtz_impl_NODISCARD
+#   define _stz_impl_EXPECTED(CONDITION) (CONDITION) _stz_impl_LIKELY
+#   define _stz_impl_ABNORMAL(CONDITION) (CONDITION) _stz_impl_UNLIKELY
+#   define _stz_impl_NODISCARD
 # endif
 
 // support from clang 10.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 10)
 # if __cplusplus < 202002L
-#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
+#   define _stz_impl_NODISCARD_REASON(REASON) _stz_impl_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
 # else
-#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _stz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _stz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # else
-#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_NODISCARD
+#   define _stz_impl_NODISCARD_REASON(REASON) _stz_impl_NODISCARD
 # endif
 
 # if defined(MTZ_DEBUGGING)
     static thread_local char _dbg_buf[128];
     static std::mutex _dbg_mtx;
     
-#   define _mtz_impl_DEBUG(...)                                      \
+#   define _stz_impl_DEBUG(...)                                      \
       [&](const char* const caller_){                                \
         std::sprintf(_impl::_dbg_buf, __VA_ARGS__);                  \
         std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};          \
         _io::dbg << caller_ << ": " << _impl::_dbg_buf << std::endl; \
       }(__func__)
 # else
-#   define _mtz_impl_DEBUG(...) void(0)
+#   define _stz_impl_DEBUG(...) void(0)
 # endif
 
 # if __cplusplus >= 201402L
-#   define _mtz_impl_CONSTEXPR_CPP14 constexpr
+#   define _stz_impl_CONSTEXPR_CPP14 constexpr
 # else
-#   define _mtz_impl_CONSTEXPR_CPP14
+#   define _stz_impl_CONSTEXPR_CPP14
 # endif
 
-    inline _mtz_impl_CONSTEXPR_CPP14
+    inline _stz_impl_CONSTEXPR_CPP14
     auto _compute_number_of_threads(signed N_) noexcept -> unsigned
     {
       if (N_ <= 0)
@@ -185,13 +185,13 @@ namespace mtz
       
       if (N_ < 1)
       {
-        _mtz_impl_DEBUG("%d threads is not possible, 1 used instead", N_);
+        _stz_impl_DEBUG("%d threads is not possible, 1 used instead", N_);
         N_ = 1;
       }
 
       if (N_ > static_cast<signed>(MAX_THREADS - 2))
       {
-        _mtz_impl_DEBUG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
+        _stz_impl_DEBUG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
       }
       
       return static_cast<unsigned>(N_);
@@ -220,9 +220,9 @@ namespace mtz
     private:
       void _loop()
       {
-        while _mtz_impl_EXPECTED(_alive)
+        while _stz_impl_EXPECTED(_alive)
         {
-          if _mtz_impl_EXPECTED(_work_available)
+          if _stz_impl_EXPECTED(_work_available)
           {
             _work();
             _work_available = false;
@@ -246,7 +246,7 @@ namespace mtz
       _cyclic(Work work_) noexcept :
         _work(work_)
       {
-        _mtz_impl_DEBUG("thread spawned");
+        _stz_impl_DEBUG("thread spawned");
       }
 
       _cyclic(const _cyclic&) noexcept {}
@@ -255,7 +255,7 @@ namespace mtz
       {
         _alive = false;
         _worker_thread.join();
-        _mtz_impl_DEBUG("thread joined");
+        _stz_impl_DEBUG("thread joined");
       }
     private:
       inline void _loop();
@@ -493,7 +493,7 @@ namespace mtz
     Pool(signed number_of_threads = MAX_THREADS) noexcept;
 
     template<typename F, typename... A>
-    _mtz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value.")
+    _stz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value.")
     inline // add work that has a return value
     auto push(F&& function, A&&... arguments) noexcept -> _impl::_future<F, A...>;
 
@@ -588,7 +588,7 @@ namespace mtz
     _size(_impl::_compute_number_of_threads(N_)),
     _workers(new _impl::_worker[_size])
   {
-    _mtz_impl_DEBUG("%u thread%s aquired.", _size, _size == 1 ? "" : "s");
+    _stz_impl_DEBUG("%u thread%s aquired.", _size, _size == 1 ? "" : "s");
   }
   
   template<typename F, typename... A>
@@ -612,15 +612,15 @@ namespace mtz
   template<typename F, typename... A>
   void Pool::push(std::true_type, F&& function_, A&&... arguments_) noexcept
   {
-    if _mtz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
+    if _stz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
     {
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
         [=]{ function_(arguments_...); }
       );
 
-      _mtz_impl_DEBUG("pushed a task with no return value.");
+      _stz_impl_DEBUG("pushed a task with no return value.");
     }
-    else _mtz_impl_DEBUG("null task pushed.");
+    else _stz_impl_DEBUG("null task pushed.");
 
     return;
   }
@@ -632,7 +632,7 @@ namespace mtz
 
     std::future<R> future;
 
-    if _mtz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
+    if _stz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
     {
       auto promise = new std::promise<R>;
       
@@ -642,9 +642,9 @@ namespace mtz
         [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function_(arguments_...)); }
       );
 
-      _mtz_impl_DEBUG("pushed a task with return value.");
+      _stz_impl_DEBUG("pushed a task with return value.");
     }
-    else _mtz_impl_DEBUG("null task pushed.");
+    else _stz_impl_DEBUG("null task pushed.");
 
     return future;
   }
@@ -666,7 +666,7 @@ namespace mtz
         }
       }
 
-      _mtz_impl_DEBUG("all threads finished their work.");
+      _stz_impl_DEBUG("all threads finished their work.");
     }
   }
   
@@ -723,14 +723,14 @@ namespace mtz
 
     delete[] _workers;
 
-    _mtz_impl_DEBUG("all workers killed.");
+    _stz_impl_DEBUG("all workers killed.");
   }
 
   void Pool::_assign() noexcept
   {
-    while _mtz_impl_EXPECTED(_alive)
+    while _stz_impl_EXPECTED(_alive)
     {
-      if _mtz_impl_ABNORMAL(_active == false) continue;
+      if _stz_impl_ABNORMAL(_active == false) continue;
 
       for (unsigned k = 0; k < _size; ++k)
       {
@@ -741,17 +741,17 @@ namespace mtz
         {
           _workers[k]._task(std::move(_queue.front()));
           _queue.pop();
-          _mtz_impl_DEBUG("assigned to worker thread #%02u.", k);
+          _stz_impl_DEBUG("assigned to worker thread #%02u.", k);
         }
       }
     }
   }
 
 # undef  MTZ_CYCLIC
-# define MTZ_CYCLIC(NS)                  _mtz_impl_CYCLIC_PRXY(__LINE__, NS)
-# define _mtz_impl_CYCLIC_PRXY(LINE, NS) _mtz_impl_CYCLIC_IMPL(LINE,     NS)
-# define _mtz_impl_CYCLIC_IMPL(LINE, NS) \
-    mtz::_impl::_cyclic<NS> _mtz_impl_cyclic##LINE = [&]() -> void
+# define MTZ_CYCLIC(NS)                  _stz_impl_CYCLIC_PRXY(__LINE__, NS)
+# define _stz_impl_CYCLIC_PRXY(LINE, NS) _stz_impl_CYCLIC_IMPL(LINE,     NS)
+# define _stz_impl_CYCLIC_IMPL(LINE, NS) \
+    stz::_impl::_cyclic<NS> _stz_impl_cyclic##LINE = [&]() -> void
 
   inline namespace _literals
   {
@@ -792,22 +792,22 @@ namespace mtz
     }
   }
 //----------------------------------------------------------------------------------------------------------------------
-# undef _mtz_impl_PRAGMA
-# undef _mtz_impl_GCC_IGNORE
-# undef _mtz_impl_CLANG_IGNORE
-# undef _mtz_impl_LIKELY
-# undef _mtz_impl_UNLIKELY
-# undef _mtz_impl_EXPECTED
-# undef _mtz_impl_ABNORMAL
-# undef _mtz_impl_NODISCARD
-# undef _mtz_impl_NODISCARD_REASON
-# undef _mtz_impl_DEBUG
-# undef _mtz_impl_CONSTEXPR_CPP14
+# undef _stz_impl_PRAGMA
+# undef _stz_impl_GCC_IGNORE
+# undef _stz_impl_CLANG_IGNORE
+# undef _stz_impl_LIKELY
+# undef _stz_impl_UNLIKELY
+# undef _stz_impl_EXPECTED
+# undef _stz_impl_ABNORMAL
+# undef _stz_impl_NODISCARD
+# undef _stz_impl_NODISCARD_REASON
+# undef _stz_impl_DEBUG
+# undef _stz_impl_CONSTEXPR_CPP14
 }
 #else
-#error "mtz: Concurrent threads are required"
+#error "stz: Concurrent threads are required"
 #endif
 #else
-#error "mtz: Support for ISO C++11 is required"
+#error "stz: Support for ISO C++11 is required"
 #endif
 #endif
