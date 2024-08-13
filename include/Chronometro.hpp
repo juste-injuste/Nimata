@@ -78,6 +78,10 @@ namespace chz
   template<Unit unit = Unit::ms>
   void sleep(unsigned long long amount) noexcept;
 
+  // pause calling thread for 'duration' amount of time
+  template <typename R, typename P>
+  void sleep(std::chrono::duration<R, P> duration) noexcept;
+
   // execute the following only if its last execution was atleast 'MS' milliseconds prior
 # define CHZ_ONLY_EVERY(MS)
 
@@ -438,7 +442,14 @@ namespace chz
     const auto goal = span + _impl::_clock::now();
     while (_impl::_clock::now() < goal);
   }
-  
+
+  template <typename R, typename P>
+  void sleep(const std::chrono::duration<R, P> duration_) noexcept
+  {
+    const auto goal = _impl::_clock::now() + duration_;
+    while (_impl::_clock::now() < goal);
+  }
+
   template<>
   void sleep<Unit::automatic>(unsigned long long) noexcept = delete;
 //----------------------------------------------------------------------------------------------------------------------
