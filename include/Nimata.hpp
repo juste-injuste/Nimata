@@ -65,11 +65,11 @@ namespace stz
 
   inline namespace _literals
   {
-    constexpr auto operator""_mHz(long double frequency)        -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_mHz(long double        frequency) -> std::chrono::nanoseconds::rep;
     constexpr auto operator""_mHz(unsigned long long frequency) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_Hz(long double frequency)         -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_Hz(unsigned long long frequency)  -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_kHz(long double frequency)        -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_Hz (long double        frequency) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_Hz (unsigned long long frequency) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_kHz(long double        frequency) -> std::chrono::nanoseconds::rep;
     constexpr auto operator""_kHz(unsigned long long frequency) -> std::chrono::nanoseconds::rep;
   }
 
@@ -233,7 +233,7 @@ namespace stz
       }
       volatile bool         _alive          = true;
       std::function<void()> _work           = nullptr;
-      std::atomic<bool>     _work_available = {false};
+      std::atomic_bool      _work_available = {false};
       std::thread           _worker_thread{_loop, this};
     };
 
@@ -537,9 +537,9 @@ namespace stz
     template<typename>
     friend struct _impl::_parfor;
     inline void _assign() noexcept;
-    std::atomic<bool>                 _alive  = {true};
-    std::atomic<bool>                 _active = {true};
-    std::atomic<unsigned>             _size;
+    std::atomic_bool                  _alive  = {true};
+    std::atomic_bool                  _active = {true};
+    std::atomic_uint                  _size;
     std::atomic<_impl::_worker*>      _workers;
     std::mutex                        _queue_mtx;
     std::queue<std::function<void()>> _queue;
@@ -755,6 +755,8 @@ namespace stz
 
   inline namespace _literals
   {
+# ifndef STZ_FREQ_LITERALS
+#   define STZ_FREQ_LITERALS
     constexpr
     auto operator""_mHz(const long double freq_) -> std::chrono::nanoseconds::rep
     {
@@ -790,6 +792,7 @@ namespace stz
     {
       return static_cast<std::chrono::nanoseconds::rep>(1000000/freq_);
     }
+# endif
   }
 //----------------------------------------------------------------------------------------------------------------------
 # undef _stz_impl_PRAGMA
