@@ -40,11 +40,11 @@ void threadpool_demo()
   std::cin.get();
 }
 
-void cyclic_demo()
+void cyclic_async_demo()
 {
   using namespace stz::_literals;
 
-  MTZ_CYCLIC(1_Hz) // clear screen every second
+  stz::cyclic_async(1_s) // clear screen every second
   {
     static unsigned frame = 0;
     std::cout << fmz::clear;
@@ -55,14 +55,15 @@ void cyclic_demo()
 
   chz::sleep(1);
 
-  MTZ_CYCLIC(5_Hz)
+  stz::cyclic_async(5_Hz)
   {
     std::cout << '='; // add 5 '=' to progress bar every second
   };
 
   chz::sleep(1);
   
-  MTZ_CYCLIC(25_Hz)
+
+  stz::cyclic_async(25_Hz)
   {
     std::cout << '-'; // add 25 '-' to progress bar every second
   };
@@ -115,7 +116,7 @@ int main()
   {
     threadpool_demo();
     
-    cyclic_demo();
+    cyclic_async_demo();
 
     parfor_demo();
   }

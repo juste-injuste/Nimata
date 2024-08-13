@@ -61,7 +61,7 @@ namespace stz
 
   class Pool;
 
-# define MTZ_CYCLIC(NS)
+# define cyclic_async(nanoseconds) // followed by { ... };
 
   inline namespace _literals
   {
@@ -71,6 +71,18 @@ namespace stz
     constexpr auto operator""_Hz (unsigned long long frequency) -> std::chrono::nanoseconds::rep;
     constexpr auto operator""_kHz(long double        frequency) -> std::chrono::nanoseconds::rep;
     constexpr auto operator""_kHz(unsigned long long frequency) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_ns (long double        duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_ns (unsigned long long duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_us (long double        duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_us (unsigned long long duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_ms (long double        duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_ms (unsigned long long duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_s  (long double        duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_s  (unsigned long long duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_min(long double        duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_min(unsigned long long duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_h  (long double        duration ) -> std::chrono::nanoseconds::rep;
+    constexpr auto operator""_h  (unsigned long long duration ) -> std::chrono::nanoseconds::rep;
   }
 
   namespace _io
@@ -80,10 +92,14 @@ namespace stz
 
   namespace _version
   {
-    constexpr long MAJOR  = 000;
-    constexpr long MINOR  = 001;
-    constexpr long PATCH  = 000;
-    constexpr long NUMBER = (MAJOR * 1000 + MINOR) * 1000 + PATCH;
+#   define NIMATA_VERSION_MAJOR  000
+#   define NIMATA_VERSION_MINOR  000
+#   define NIMATA_VERSION_PATCH  000
+#   define NIMATA_VERSION_NUMBER ((NIMATA_VERSION_MAJOR * 1000 + NIMATA_VERSION_MINOR) * 1000 + NIMATA_VERSION_PATCH)
+    constexpr long MAJOR  = NIMATA_VERSION_MAJOR;
+    constexpr long MINOR  = NIMATA_VERSION_MINOR;
+    constexpr long PATCH  = NIMATA_VERSION_PATCH;
+    constexpr long NUMBER = NIMATA_VERSION_NUMBER;
   }
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _impl
@@ -238,20 +254,20 @@ namespace stz
     };
 
     template<std::chrono::nanoseconds::rep PERIOD>
-    class _cyclic final
+    class _cyclic_async final
     {
-      static_assert(PERIOD >= 0, "MTZ_CYCLIC: 'PERIOD' must be greater or equal to 0.");
+      static_assert(PERIOD >= 0, "cyclic_async: 'PERIOD' must be greater or equal to 0.");
     public:
       template<typename Work>
-      _cyclic(Work work_) noexcept :
+      _cyclic_async(Work work_) noexcept :
         _work(work_)
       {
         _stz_impl_DEBUG("thread spawned");
       }
 
-      _cyclic(const _cyclic&) noexcept {}
+      _cyclic_async(const _cyclic_async&) noexcept {}
 
-      ~_cyclic() noexcept
+      ~_cyclic_async() noexcept
       {
         _alive = false;
         _worker_thread.join();
@@ -265,7 +281,7 @@ namespace stz
     };
     
     template<std::chrono::nanoseconds::rep PERIOD>
-    void _cyclic<PERIOD>::_loop()
+    void _cyclic_async<PERIOD>::_loop()
     {
       std::chrono::high_resolution_clock::time_point last = {};
       std::chrono::high_resolution_clock::time_point time;
@@ -285,7 +301,7 @@ namespace stz
 
     template<>
     inline
-    void _cyclic<0>::_loop()
+    void _cyclic_async<0>::_loop()
     {
       while (_alive)
       {
@@ -747,50 +763,124 @@ namespace stz
     }
   }
 
-# undef  MTZ_CYCLIC
-# define MTZ_CYCLIC(NS)                  _stz_impl_CYCLIC_PRXY(__LINE__, NS)
-# define _stz_impl_CYCLIC_PRXY(LINE, NS) _stz_impl_CYCLIC_IMPL(LINE,     NS)
-# define _stz_impl_CYCLIC_IMPL(LINE, NS) \
-    stz::_impl::_cyclic<NS> _stz_impl_cyclic##LINE = [&]() -> void
+# undef  cyclic_async
+# define cyclic_async(NS)                      _stz_impl_cyclic_async_PRXY(__LINE__, NS)
+# define _stz_impl_cyclic_async_PRXY(LINE, NS) _stz_impl_cyclic_async_IMPL(LINE,     NS)
+# define _stz_impl_cyclic_async_IMPL(LINE, NS) _impl::_cyclic_async<NS> _stz_impl_cyclic_async##LINE = [&]() -> void
 
   inline namespace _literals
   {
-# ifndef STZ_FREQ_LITERALS
-#   define STZ_FREQ_LITERALS
+# if not defined(STZ_LITERALS_FREQUENCY)
+#   define STZ_LITERALS_FREQUENCY
     constexpr
-    auto operator""_mHz(const long double freq_) -> std::chrono::nanoseconds::rep
+    auto operator""_mHz(const long double frequency_) -> std::chrono::nanoseconds::rep
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000000000/freq_);
+      return static_cast<std::chrono::nanoseconds::rep>(1000000000000/frequency_);
     }
 
     constexpr
-    auto operator""_mHz(const unsigned long long freq_) -> std::chrono::nanoseconds::rep
+    auto operator""_mHz(const unsigned long long frequency_) -> std::chrono::nanoseconds::rep
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000000000/freq_);
+      return static_cast<std::chrono::nanoseconds::rep>(1000000000000/frequency_);
     }
 
     constexpr
-    auto operator""_Hz(const long double freq_) -> std::chrono::nanoseconds::rep
+    auto operator""_Hz(const long double frequency_) -> std::chrono::nanoseconds::rep
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000000/freq_);
+      return static_cast<std::chrono::nanoseconds::rep>(1000000000/frequency_);
     }
 
     constexpr
-    auto operator""_Hz(const unsigned long long freq_) -> std::chrono::nanoseconds::rep
+    auto operator""_Hz(const unsigned long long frequency_) -> std::chrono::nanoseconds::rep
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000000/freq_);
+      return static_cast<std::chrono::nanoseconds::rep>(1000000000/frequency_);
     }
     
     constexpr
-    auto operator""_kHz(const long double freq_) -> std::chrono::nanoseconds::rep
+    auto operator""_kHz(const long double frequency_) -> std::chrono::nanoseconds::rep
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000/freq_);
+      return static_cast<std::chrono::nanoseconds::rep>(1000000/frequency_);
     }
 
     constexpr
-    auto operator""_kHz(const unsigned long long freq_) -> std::chrono::nanoseconds::rep
+    auto operator""_kHz(const unsigned long long frequency_) -> std::chrono::nanoseconds::rep
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000/freq_);
+      return static_cast<std::chrono::nanoseconds::rep>(1000000/frequency_);
+    }
+# endif
+
+# if not defined(STZ_LITERALS_DURATION)
+#   define STZ_LITERALS_DURATION
+    constexpr
+    auto operator""_ns(const long double duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_);
+    }
+
+    constexpr
+    auto operator""_ns(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_);
+    }
+
+    constexpr
+    auto operator""_us(const long double duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000);
+    }
+
+    constexpr
+    auto operator""_us(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000);
+    }
+
+    constexpr
+    auto operator""_ms(const long double duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000000);
+    }
+
+    constexpr
+    auto operator""_ms(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000000);
+    }
+
+    constexpr
+    auto operator""_s(const long double duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000000000);
+    }
+
+    constexpr
+    auto operator""_s(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000000000);
+    }
+    
+    constexpr
+    auto operator""_min(const long double duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_*60000000000);
+    }
+
+    constexpr
+    auto operator""_min(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_*60000000000);
+    }
+    
+    constexpr
+    auto operator""_h(const long double duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_*3600000000000);
+    }
+
+    constexpr
+    auto operator""_h(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
+    {
+      return static_cast<std::chrono::nanoseconds::rep>(duration_*3600000000000);
     }
 # endif
   }
