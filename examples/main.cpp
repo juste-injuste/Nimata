@@ -47,7 +47,7 @@ void cyclic_async_demo()
   stz::cyclic_async(1_s) // clear screen every second
   {
     static unsigned frame = 0;
-    std::cout << fmz::clear;
+    std::cout << stz::clear;
     std::cout << "press enter to continue...\n";
     std::cout << "frame: " << ++frame << "\n";
     std::cout << "0%                        100%\n";
