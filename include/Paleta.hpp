@@ -45,9 +45,8 @@ inline namespace fmz
 
 # define terminal_format(...)
 
-  struct {} clear;
-
-  struct {} reset;
+  enum { clear };
+  enum { reset };
 
   enum class Colors : uint_fast8_t
   {
@@ -123,6 +122,37 @@ inline namespace fmz
 //----------------------------------------------------------------------------------------------------------------------
   namespace _impl
   {
+# if defined(__clang__)
+#   define _stz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
+#   define _stz_impl_CLANG_IGNORE(WARNING, ...)          \
+      _stz_impl_PRAGMA(clang diagnostic push)            \
+      _stz_impl_PRAGMA(clang diagnostic ignored WARNING) \
+      __VA_ARGS__                                        \
+      _stz_impl_PRAGMA(clang diagnostic pop)
+#endif
+
+// support from clang 12.0.0 and GCC 10.1 onward
+# if defined(__clang__) and (__clang_major__ >= 12)
+# if __cplusplus < 202002L
+#   define _stz_impl_LIKELY   _stz_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
+# else
+#   define _stz_impl_LIKELY   [[likely]]
+# endif
+# elif defined(__GNUC__) and (__GNUC__ >= 10)
+#   define _stz_impl_LIKELY   [[likely]]
+# else
+#   define _stz_impl_LIKELY
+# endif
+
+// support from clang 3.9.0 and GCC 4.7.3 onward
+# if defined(__clang__)
+#   define _stz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _stz_impl_LIKELY
+# elif defined(__GNUC__)
+#   define _stz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _stz_impl_LIKELY
+# else
+#   define _stz_impl_EXPECTED(CONDITION) (CONDITION) _stz_impl_LIKELY
+# endif
+
     struct _color final
     {
       constexpr
@@ -485,9 +515,10 @@ inline namespace fmz
   inline
   std::ostream& operator<<(std::ostream& ostream_, const decltype(clear)) noexcept
   {
-    if ((ostream_.rdbuf() == std::cout.rdbuf()) ||
-        (ostream_.rdbuf() == std::cerr.rdbuf()) ||
-        (ostream_.rdbuf() == std::clog.rdbuf()))
+    if _stz_impl_EXPECTED(
+      (ostream_.rdbuf() == std::cout.rdbuf()) ||
+      (ostream_.rdbuf() == std::cerr.rdbuf()) ||
+      (ostream_.rdbuf() == std::clog.rdbuf()))
     {
       ostream_ << "\033[H\033[J";
     }
@@ -497,6 +528,10 @@ inline namespace fmz
 }
 }
 //----------------------------------------------------------------------------------------------------------------------
+#undef _stz_impl_PRAGMA
+#undef _stz_impl_CLANG_IGNORE
+#undef _stz_impl_LIKELY
+#undef _stz_impl_EXPECTED
 #undef _stz_impl_MAKE_TYPE_BACKDOOR
 #undef _stz_impl_MAKE_DATA_BACKDOOR
 #undef _stz_impl_MAKE_CONS_BACKDOOR
