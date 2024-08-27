@@ -74,8 +74,8 @@ void parfor_demo()
 {
   std::cout << stz::clear;
 
-  static std::vector<int> vector = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  static stz::Pool        pool;
+  static auto      vector = std::vector<int>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  static stz::Pool pool;
 
   STZ_MEASURE_BLOCK(", sequential iteration took: %ms")
   for (int& value : vector)
