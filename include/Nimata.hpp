@@ -722,11 +722,8 @@ inline namespace mtz
   {
     return _impl::_parfor<iterable>(this, _impl::_begin(thing_), _impl::_end(thing_));
   }
-# undef  parfor_continue
-# define parfor_continue return
-# define parfor(PARFOR_VARIABLE_DECLARATION, ...) \
-    parfor(__VA_ARGS__) = [&](PARFOR_VARIABLE_DECLARATION) -> void
 
+# define parfor(PARFOR_VARIABLE_DECLARATION, ...) parfor(__VA_ARGS__) = [&](PARFOR_VARIABLE_DECLARATION) -> void
 
   Pool::~Pool() noexcept
   {
@@ -768,8 +765,8 @@ inline namespace mtz
 
   inline namespace _literals
   {
-# if not defined(STZ_LITERALS_FREQUENCY)
-#   define STZ_LITERALS_FREQUENCY
+# if not defined(_stz_impl_LITERALS_FREQUENCY)
+#   define _stz_impl_LITERALS_FREQUENCY
     constexpr
     auto operator""_mHz(const long double frequency_) -> std::chrono::nanoseconds
     {
