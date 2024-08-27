@@ -10,25 +10,20 @@ MIT License
 
 Copyright (c) 2023 Justin Asselin (juste-injuste)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
------_versions-----------------------------------------------------------------------------------------------------------
+-----versions-----------------------------------------------------------------------------------------------------------
 
 -----description--------------------------------------------------------------------------------------------------------
 
@@ -44,154 +39,147 @@ SOFTWARE.
 #include <future>      // for std::future, std::promise
 #include <functional>  // for std::function
 #include <queue>       // for std::queue
-#include <chrono>      // for std::chrono::nanoseconds, std::chrono::high_resolution_clock
+#include <chrono>      // for std::chrono::nanoseconds, std::chrono::high_resolution_clock, std::chrono::steady_clock
 #include <ostream>     // for std::ostream
 #include <iostream>    // for std::clog
 #include <memory>      // for std::unique_ptr
 #include <utility>     // for std::declval
-#include <type_traits> // for std::is_function, std::is_same, std::enable_if, std:: true_type, std::false_type
+#include <type_traits> // for std::is_function, std::is_same, std::enable_if, std::conditional, std:: true_type, std::false_type
 //---conditionally necessary standard libraries-------------------------------------------------------------------------
-#if defined(MTZ_DEBUGGING)
+#if defined(STZ_DEBUGGING)
 # include <cstdio>     // for std::sprintf
 #endif
 //---Nimata library-----------------------------------------------------------------------------------------------------
 namespace stz
 {
+inline namespace mtz
+//----------------------------------------------------------------------------------------------------------------------
+{
   const unsigned MAX_THREADS = std::thread::hardware_concurrency();
 
   class Pool;
 
-# define cyclic_async(nanoseconds) // followed by { ... };
-
-  inline namespace _literals
-  {
-    constexpr auto operator""_mHz(long double        frequency) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_mHz(unsigned long long frequency) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_Hz (long double        frequency) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_Hz (unsigned long long frequency) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_kHz(long double        frequency) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_kHz(unsigned long long frequency) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_ns (long double        duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_ns (unsigned long long duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_us (long double        duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_us (unsigned long long duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_ms (long double        duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_ms (unsigned long long duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_s  (long double        duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_s  (unsigned long long duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_min(long double        duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_min(unsigned long long duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_h  (long double        duration ) -> std::chrono::nanoseconds::rep;
-    constexpr auto operator""_h  (unsigned long long duration ) -> std::chrono::nanoseconds::rep;
-  }
+  void cyclic_async(size_t period, ...);
 
   namespace _io
   {
     static std::ostream dbg(std::clog.rdbuf()); // debugging
   }
 
+  inline namespace _literals
+  {
+    constexpr auto operator""_mHz(long double        frequency) -> std::chrono::nanoseconds;
+    constexpr auto operator""_mHz(unsigned long long frequency) -> std::chrono::nanoseconds;
+    constexpr auto operator""_Hz (long double        frequency) -> std::chrono::nanoseconds;
+    constexpr auto operator""_Hz (unsigned long long frequency) -> std::chrono::nanoseconds;
+    constexpr auto operator""_kHz(long double        frequency) -> std::chrono::nanoseconds;
+    constexpr auto operator""_kHz(unsigned long long frequency) -> std::chrono::nanoseconds;
+  }
+
   namespace _version
   {
-#   define NIMATA_VERSION_MAJOR  000
-#   define NIMATA_VERSION_MINOR  000
-#   define NIMATA_VERSION_PATCH  000
-#   define NIMATA_VERSION_NUMBER ((NIMATA_VERSION_MAJOR * 1000 + NIMATA_VERSION_MINOR) * 1000 + NIMATA_VERSION_PATCH)
-    constexpr long MAJOR  = NIMATA_VERSION_MAJOR;
-    constexpr long MINOR  = NIMATA_VERSION_MINOR;
-    constexpr long PATCH  = NIMATA_VERSION_PATCH;
-    constexpr long NUMBER = NIMATA_VERSION_NUMBER;
+#   define MTZ_VERSION_MAJOR  000
+#   define MTZ_VERSION_MINOR  000
+#   define MTZ_VERSION_PATCH  000
+#   define MTZ_VERSION_NUMBER ((MTZ_VERSION_MAJOR  * 1000 + MTZ_VERSION_MINOR) * 1000 + MTZ_VERSION_PATCH)
+
+    constexpr long MAJOR  = MTZ_VERSION_MAJOR;
+    constexpr long MINOR  = MTZ_VERSION_MINOR;
+    constexpr long PATCH  = MTZ_VERSION_PATCH;
+    constexpr long NUMBER = MTZ_VERSION_NUMBER;
   }
 //---Nimata library: backend--------------------------------------------------------------------------------------------
   namespace _impl
   {
-#   define _stz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
+#   define _mtz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
 # if defined(__clang__)
-#   define _stz_impl_CLANG_IGNORE(WARNING, ...)          \
-      _stz_impl_PRAGMA(clang diagnostic push)            \
-      _stz_impl_PRAGMA(clang diagnostic ignored WARNING) \
+#   define _mtz_impl_CLANG_IGNORE(WARNING, ...)          \
+      _mtz_impl_PRAGMA(clang diagnostic push)            \
+      _mtz_impl_PRAGMA(clang diagnostic ignored WARNING) \
       __VA_ARGS__                                        \
-      _stz_impl_PRAGMA(clang diagnostic pop)
+      _mtz_impl_PRAGMA(clang diagnostic pop)
 
-#   define _stz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
+#   define _mtz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
 # elif defined(__GNUC__)
-#   define _stz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
+#   define _mtz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
 
-#   define _stz_impl_GCC_IGNORE(WARNING, ...)          \
-      _stz_impl_PRAGMA(GCC diagnostic push)            \
-      _stz_impl_PRAGMA(GCC diagnostic ignored WARNING) \
+#   define _mtz_impl_GCC_IGNORE(WARNING, ...)          \
+      _mtz_impl_PRAGMA(GCC diagnostic push)            \
+      _mtz_impl_PRAGMA(GCC diagnostic ignored WARNING) \
       __VA_ARGS__                                      \
-      _stz_impl_PRAGMA(GCC diagnostic pop)
+      _mtz_impl_PRAGMA(GCC diagnostic pop)
 # else
-#   define _stz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
-#   define _stz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
+#   define _mtz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
+#   define _mtz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
 #endif
+
 
 // support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
 # if __cplusplus < 202002L
-#   define _stz_impl_LIKELY   _stz_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
-#   define _stz_impl_UNLIKELY _stz_impl_CLANG_IGNORE("-Wc++20-extensions", [[unlikely]])
+#   define _mtz_impl_LIKELY   _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
+#   define _mtz_impl_UNLIKELY _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[unlikely]])
 # else
-#   define _stz_impl_LIKELY   [[likely]]
-#   define _stz_impl_UNLIKELY [[unlikely]]
+#   define _mtz_impl_LIKELY   [[likely]]
+#   define _mtz_impl_UNLIKELY [[unlikely]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _stz_impl_LIKELY   [[likely]]
-#   define _stz_impl_UNLIKELY [[unlikely]]
+#   define _mtz_impl_LIKELY   [[likely]]
+#   define _mtz_impl_UNLIKELY [[unlikely]]
 # else
-#   define _stz_impl_LIKELY
-#   define _stz_impl_UNLIKELY
+#   define _mtz_impl_LIKELY
+#   define _mtz_impl_UNLIKELY
 # endif
 
 // support from clang 3.9.0 and GCC 4.7.3 onward
 # if defined(__clang__)
-#   define _stz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _stz_impl_LIKELY
-#   define _stz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _stz_impl_UNLIKELY
-#   define _stz_impl_NODISCARD           __attribute__((warn_unused_result))
+#   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
+#   define _mtz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _mtz_impl_UNLIKELY
+#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
 # elif defined(__GNUC__)
-#   define _stz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _stz_impl_LIKELY
-#   define _stz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _stz_impl_UNLIKELY
-#   define _stz_impl_NODISCARD           __attribute__((warn_unused_result))
+#   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
+#   define _mtz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _mtz_impl_UNLIKELY
+#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
 # else
-#   define _stz_impl_EXPECTED(CONDITION) (CONDITION) _stz_impl_LIKELY
-#   define _stz_impl_ABNORMAL(CONDITION) (CONDITION) _stz_impl_UNLIKELY
-#   define _stz_impl_NODISCARD
+#   define _mtz_impl_EXPECTED(CONDITION) (CONDITION) _mtz_impl_LIKELY
+#   define _mtz_impl_ABNORMAL(CONDITION) (CONDITION) _mtz_impl_UNLIKELY
+#   define _mtz_impl_NODISCARD
 # endif
 
 // support from clang 10.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 10)
 # if __cplusplus < 202002L
-#   define _stz_impl_NODISCARD_REASON(REASON) _stz_impl_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
+#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
 # else
-#   define _stz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _stz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # else
-#   define _stz_impl_NODISCARD_REASON(REASON) _stz_impl_NODISCARD
+#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_NODISCARD
 # endif
 
-# if defined(MTZ_DEBUGGING)
+# if defined(STZ_DEBUGGING)
     static thread_local char _dbg_buf[128];
     static std::mutex _dbg_mtx;
     
-#   define _stz_impl_DEBUG(...)                                      \
+#   define _mtz_impl_DEBUG(...)                                      \
       [&](const char* const caller_){                                \
         std::sprintf(_impl::_dbg_buf, __VA_ARGS__);                  \
         std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};          \
         _io::dbg << caller_ << ": " << _impl::_dbg_buf << std::endl; \
       }(__func__)
 # else
-#   define _stz_impl_DEBUG(...) void(0)
+#   define _mtz_impl_DEBUG(...) void(0)
 # endif
 
 # if __cplusplus >= 201402L
-#   define _stz_impl_CONSTEXPR_CPP14 constexpr
+#   define _mtz_impl_CONSTEXPR_CPP14 constexpr
 # else
-#   define _stz_impl_CONSTEXPR_CPP14
+#   define _mtz_impl_CONSTEXPR_CPP14
 # endif
 
-    inline _stz_impl_CONSTEXPR_CPP14
+    inline _mtz_impl_CONSTEXPR_CPP14
     auto _compute_number_of_threads(signed N_) noexcept -> unsigned
     {
       if (N_ <= 0)
@@ -201,13 +189,13 @@ namespace stz
       
       if (N_ < 1)
       {
-        _stz_impl_DEBUG("%d threads is not possible, 1 used instead", N_);
+        _mtz_impl_DEBUG("%d threads is not possible, 1 used instead", N_);
         N_ = 1;
       }
 
       if (N_ > static_cast<signed>(MAX_THREADS - 2))
       {
-        _stz_impl_DEBUG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
+        _mtz_impl_DEBUG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
       }
       
       return static_cast<unsigned>(N_);
@@ -236,9 +224,9 @@ namespace stz
     private:
       void _loop()
       {
-        while _stz_impl_EXPECTED(_alive)
+        while _mtz_impl_EXPECTED(_alive)
         {
-          if _stz_impl_EXPECTED(_work_available)
+          if _mtz_impl_EXPECTED(_work_available)
           {
             _work();
             _work_available = false;
@@ -262,7 +250,7 @@ namespace stz
       _cyclic_async(Work work_) noexcept :
         _work(work_)
       {
-        _stz_impl_DEBUG("thread spawned");
+        _mtz_impl_DEBUG("thread spawned.");
       }
 
       _cyclic_async(const _cyclic_async&) noexcept {}
@@ -271,7 +259,7 @@ namespace stz
       {
         _alive = false;
         _worker_thread.join();
-        _stz_impl_DEBUG("thread joined");
+        _mtz_impl_DEBUG("thread joined.");
       }
     private:
       inline void _loop();
@@ -283,14 +271,22 @@ namespace stz
     template<std::chrono::nanoseconds::rep PERIOD>
     void _cyclic_async<PERIOD>::_loop()
     {
-      std::chrono::high_resolution_clock::time_point last = {};
-      std::chrono::high_resolution_clock::time_point time;
-      std::chrono::nanoseconds::rep                  span;
+      using clock = std::conditional<
+        std::chrono::high_resolution_clock::is_steady,
+        std::chrono::high_resolution_clock,
+        std::chrono::steady_clock
+      >::type;
+
+      clock::time_point last = {},  time;
+      std::chrono::nanoseconds::rep span;
 
       while (_alive)
       {
-        time = std::chrono::high_resolution_clock::now();
+        time = clock::now();
+        _mtz_impl_GCC_IGNORE("-Wstrict-overflow", _mtz_impl_CLANG_IGNORE("-Wstrict-overflow",
         span = std::chrono::nanoseconds{time - last}.count();
+        ))
+
         if (span >= PERIOD)
         {
           last = time;
@@ -330,27 +326,27 @@ namespace stz
     };
 
     template<typename T, typename R = bool>
-    using _if_convert_validate_callable = typename std::enable_if<
+    using _if_can_validate_callable = typename std::enable_if<
       _can_convert_to_bool<T>::value == true
       and std::is_function<T>::value != true, R
     >::type;
 
     template<typename T, typename R = bool>
-    using _no_convert_validate_callable = typename std::enable_if<
+    using _no_can_validate_callable = typename std::enable_if<
       _can_convert_to_bool<T>::value != true
       or  std::is_function<T>::value == true, R
     >::type;
 
     template<typename F>
     constexpr
-    auto _validate_callable(const F& function_) noexcept -> _if_convert_validate_callable<F>
+    auto _validate_callable(const F& function_) noexcept -> _if_can_validate_callable<F>
     {
       return static_cast<bool>(function_);
     }
 
     template<typename F>
     constexpr
-    auto _validate_callable(const F& function_) noexcept -> _no_convert_validate_callable<F>
+    auto _validate_callable(const F& function_) noexcept -> _no_can_validate_callable<F>
     {
       return true;
     }
@@ -509,7 +505,7 @@ namespace stz
     Pool(signed number_of_threads = MAX_THREADS) noexcept;
 
     template<typename F, typename... A>
-    _stz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value.")
+    _mtz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value.")
     inline // add work that has a return value
     auto push(F&& function, A&&... arguments) noexcept -> _impl::_future<F, A...>;
 
@@ -604,7 +600,7 @@ namespace stz
     _size(_impl::_compute_number_of_threads(N_)),
     _workers(new _impl::_worker[_size])
   {
-    _stz_impl_DEBUG("%u thread%s aquired.", _size, _size == 1 ? "" : "s");
+    _mtz_impl_DEBUG("%u thread%s aquired.", _size, _size == 1 ? "" : "s");
   }
   
   template<typename F, typename... A>
@@ -628,15 +624,15 @@ namespace stz
   template<typename F, typename... A>
   void Pool::push(std::true_type, F&& function_, A&&... arguments_) noexcept
   {
-    if _stz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
+    if _mtz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
     {
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
         [=]{ function_(arguments_...); }
       );
 
-      _stz_impl_DEBUG("pushed a task with no return value.");
+      _mtz_impl_DEBUG("pushed a task with no return value.");
     }
-    else _stz_impl_DEBUG("null task pushed.");
+    else _mtz_impl_DEBUG("null task pushed.");
 
     return;
   }
@@ -648,7 +644,7 @@ namespace stz
 
     std::future<R> future;
 
-    if _stz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
+    if _mtz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
     {
       auto promise = new std::promise<R>;
       
@@ -658,9 +654,9 @@ namespace stz
         [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function_(arguments_...)); }
       );
 
-      _stz_impl_DEBUG("pushed a task with return value.");
+      _mtz_impl_DEBUG("pushed a task with return value.");
     }
-    else _stz_impl_DEBUG("null task pushed.");
+    else _mtz_impl_DEBUG("null task pushed.");
 
     return future;
   }
@@ -682,7 +678,7 @@ namespace stz
         }
       }
 
-      _stz_impl_DEBUG("all threads finished their work.");
+      _mtz_impl_DEBUG("all threads finished their work.");
     }
   }
   
@@ -726,9 +722,11 @@ namespace stz
   {
     return _impl::_parfor<iterable>(this, _impl::_begin(thing_), _impl::_end(thing_));
   }
-  
+# undef  parfor_continue
+# define parfor_continue return
 # define parfor(PARFOR_VARIABLE_DECLARATION, ...) \
     parfor(__VA_ARGS__) = [&](PARFOR_VARIABLE_DECLARATION) -> void
+
 
   Pool::~Pool() noexcept
   {
@@ -739,14 +737,14 @@ namespace stz
 
     delete[] _workers;
 
-    _stz_impl_DEBUG("all workers killed.");
+    _mtz_impl_DEBUG("all workers killed.");
   }
 
   void Pool::_assign() noexcept
   {
-    while _stz_impl_EXPECTED(_alive)
+    while _mtz_impl_EXPECTED(_alive)
     {
-      if _stz_impl_ABNORMAL(_active == false) continue;
+      if _mtz_impl_ABNORMAL(_active == false) continue;
 
       for (unsigned k = 0; k < _size; ++k)
       {
@@ -757,150 +755,77 @@ namespace stz
         {
           _workers[k]._task(std::move(_queue.front()));
           _queue.pop();
-          _stz_impl_DEBUG("assigned to worker thread #%02u.", k);
+          _mtz_impl_DEBUG("assigned to worker thread #%02u.", k);
         }
       }
     }
   }
 
-# undef  cyclic_async
-# define cyclic_async(NS)                      _stz_impl_cyclic_async_PRXY(__LINE__, NS)
-# define _stz_impl_cyclic_async_PRXY(LINE, NS) _stz_impl_cyclic_async_IMPL(LINE,     NS)
-# define _stz_impl_cyclic_async_IMPL(LINE, NS) _impl::_cyclic_async<NS> _stz_impl_cyclic_async##LINE = [&]() -> void
+# define cyclic_async(DURATION)                      _mtz_impl_cyclic_async_PRXY(__LINE__, DURATION)
+# define _mtz_impl_cyclic_async_PRXY(LINE, DURATION) _mtz_impl_cyclic_async_IMPL(LINE,     DURATION)
+# define _mtz_impl_cyclic_async_IMPL(LINE, DURATION) \
+    mtz::_impl::_cyclic_async<(DURATION).count()> _mtz_impl_cyclic_async##LINE = [&]() -> void
 
   inline namespace _literals
   {
 # if not defined(STZ_LITERALS_FREQUENCY)
 #   define STZ_LITERALS_FREQUENCY
     constexpr
-    auto operator""_mHz(const long double frequency_) -> std::chrono::nanoseconds::rep
+    auto operator""_mHz(const long double frequency_) -> std::chrono::nanoseconds
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000000000/frequency_);
+      return std::chrono::nanoseconds(static_cast<std::chrono::nanoseconds::rep>(1000000000000/frequency_));
     }
 
     constexpr
-    auto operator""_mHz(const unsigned long long frequency_) -> std::chrono::nanoseconds::rep
+    auto operator""_mHz(const unsigned long long frequency_) -> std::chrono::nanoseconds
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000000000/frequency_);
+      return std::chrono::nanoseconds(static_cast<std::chrono::nanoseconds::rep>(1000000000000/frequency_));
     }
 
     constexpr
-    auto operator""_Hz(const long double frequency_) -> std::chrono::nanoseconds::rep
+    auto operator""_Hz(const long double frequency_) -> std::chrono::nanoseconds
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000000/frequency_);
+      return std::chrono::nanoseconds(static_cast<std::chrono::nanoseconds::rep>(1000000000/frequency_));
     }
 
     constexpr
-    auto operator""_Hz(const unsigned long long frequency_) -> std::chrono::nanoseconds::rep
+    auto operator""_Hz(const unsigned long long frequency_) -> std::chrono::nanoseconds
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000000/frequency_);
+      return std::chrono::nanoseconds(static_cast<std::chrono::nanoseconds::rep>(1000000000/frequency_));
     }
     
     constexpr
-    auto operator""_kHz(const long double frequency_) -> std::chrono::nanoseconds::rep
+    auto operator""_kHz(const long double frequency_) -> std::chrono::nanoseconds
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000/frequency_);
+      return std::chrono::nanoseconds(static_cast<std::chrono::nanoseconds::rep>(1000000/frequency_));
     }
 
     constexpr
-    auto operator""_kHz(const unsigned long long frequency_) -> std::chrono::nanoseconds::rep
+    auto operator""_kHz(const unsigned long long frequency_) -> std::chrono::nanoseconds
     {
-      return static_cast<std::chrono::nanoseconds::rep>(1000000/frequency_);
-    }
-# endif
-
-# if not defined(STZ_LITERALS_DURATION)
-#   define STZ_LITERALS_DURATION
-    constexpr
-    auto operator""_ns(const long double duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_);
-    }
-
-    constexpr
-    auto operator""_ns(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_);
-    }
-
-    constexpr
-    auto operator""_us(const long double duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000);
-    }
-
-    constexpr
-    auto operator""_us(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000);
-    }
-
-    constexpr
-    auto operator""_ms(const long double duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000000);
-    }
-
-    constexpr
-    auto operator""_ms(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000000);
-    }
-
-    constexpr
-    auto operator""_s(const long double duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000000000);
-    }
-
-    constexpr
-    auto operator""_s(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_*1000000000);
-    }
-    
-    constexpr
-    auto operator""_min(const long double duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_*60000000000);
-    }
-
-    constexpr
-    auto operator""_min(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_*60000000000);
-    }
-    
-    constexpr
-    auto operator""_h(const long double duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_*3600000000000);
-    }
-
-    constexpr
-    auto operator""_h(const unsigned long long duration_) -> std::chrono::nanoseconds::rep
-    {
-      return static_cast<std::chrono::nanoseconds::rep>(duration_*3600000000000);
+      return std::chrono::nanoseconds(static_cast<std::chrono::nanoseconds::rep>(1000000/frequency_));
     }
 # endif
   }
-//----------------------------------------------------------------------------------------------------------------------
-# undef _stz_impl_PRAGMA
-# undef _stz_impl_GCC_IGNORE
-# undef _stz_impl_CLANG_IGNORE
-# undef _stz_impl_LIKELY
-# undef _stz_impl_UNLIKELY
-# undef _stz_impl_EXPECTED
-# undef _stz_impl_ABNORMAL
-# undef _stz_impl_NODISCARD
-# undef _stz_impl_NODISCARD_REASON
-# undef _stz_impl_DEBUG
-# undef _stz_impl_CONSTEXPR_CPP14
 }
+}
+//----------------------------------------------------------------------------------------------------------------------
+# undef _mtz_impl_PRAGMA
+# undef _mtz_impl_GCC_IGNORE
+# undef _mtz_impl_CLANG_IGNORE
+# undef _mtz_impl_LIKELY
+# undef _mtz_impl_UNLIKELY
+# undef _mtz_impl_EXPECTED
+# undef _mtz_impl_ABNORMAL
+# undef _mtz_impl_NODISCARD
+# undef _mtz_impl_NODISCARD_REASON
+# undef _mtz_impl_DEBUG
+# undef _mtz_impl_CONSTEXPR_CPP14
+//----------------------------------------------------------------------------------------------------------------------
 #else
-#error "stz: Concurrent threads are required"
+#error "mtz: Concurrent threads are required"
 #endif
 #else
-#error "stz: Support for ISO C++11 is required"
+#error "mtz: Support for ISO C++11 is required"
 #endif
 #endif
