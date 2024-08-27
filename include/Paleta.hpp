@@ -284,13 +284,12 @@ inline namespace fmz
 //----------------------------------------------------------------------------------------------------------------------
   namespace _impl
   {
-#define _stz_impl_MAKE_TYPE_BACKDOOR(INTO, TYPE) using TYPE = INTO::TYPE;
-#define _stz_impl_MAKE_DATA_BACKDOOR(INTO, DATA)                                           \
-    static constexpr                                                                       \
-    auto DATA(const INTO& into_) noexcept -> std::remove_const<decltype(INTO::DATA)>::type \
-    {                                                                                      \
-      return into_.DATA;                                                                   \
-    }
+#   define _stz_impl_MAKE_DATA_BACKDOOR(INTO, DATA)                                          \
+      static constexpr                                                                       \
+      auto DATA(const INTO& into_) noexcept -> std::remove_const<decltype(INTO::DATA)>::type \
+      {                                                                                      \
+        return into_.DATA;                                                                   \
+      }
 
     struct _backdoor
     {
@@ -305,6 +304,7 @@ inline namespace fmz
 
       _stz_impl_MAKE_DATA_BACKDOOR(Background, _color)
     };
+#   undef _stz_impl_MAKE_DATA_BACKDOOR
   }
 //----------------------------------------------------------------------------------------------------------------------
   template<typename... C>
@@ -463,9 +463,6 @@ inline namespace fmz
 #undef _stz_impl_CLANG_IGNORE
 #undef _stz_impl_LIKELY
 #undef _stz_impl_EXPECTED
-#undef _stz_impl_MAKE_TYPE_BACKDOOR
-#undef _stz_impl_MAKE_DATA_BACKDOOR
-#undef _stz_impl_MAKE_CONS_BACKDOOR
 //----------------------------------------------------------------------------------------------------------------------
 #else
 #error "Paleta: Support for ISO C++11 is required"
