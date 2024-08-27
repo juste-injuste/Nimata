@@ -20,9 +20,9 @@ void threadpool_demo()
   static stz::Pool pool;
 
   std::future<int> future;
-  CHZ_MEASURE()
+  STZ_MEASURE_BLOCK()
   {
-    CHZ_LOOP_FOR(10000)
+    STZ_LOOP_FOR_N(10000)
     {
       future = pool.push(work_1);
       pool.push(work_2);
@@ -44,7 +44,7 @@ void cyclic_async_demo()
 {
   using namespace stz::_literals;
 
-  stz::cyclic_async(1_s) // clear screen every second
+  stz::cyclic_async(std::chrono::seconds(1)) // clear screen every second
   {
     static unsigned frame = 0;
     std::cout << stz::clear;
@@ -52,17 +52,16 @@ void cyclic_async_demo()
     std::cout << "frame: " << ++frame << "\n";
     std::cout << "0%                        100%\n";
   };
-
-  chz::sleep(1);
+  
+  stz::sleep(1);
 
   stz::cyclic_async(5_Hz)
   {
     std::cout << '='; // add 5 '=' to progress bar every second
   };
 
-  chz::sleep(1);
+  stz::sleep(1);
   
-
   stz::cyclic_async(25_Hz)
   {
     std::cout << '-'; // add 25 '-' to progress bar every second
@@ -78,31 +77,31 @@ void parfor_demo()
   static std::vector<int> vector = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
   static stz::Pool        pool;
 
-  CHZ_MEASURE(", sequential iteration took: %ms")
+  STZ_MEASURE_BLOCK(", sequential iteration took: %ms")
   for (int& value : vector)
   {
-    chz::sleep(2);
+    stz::sleep(2);
     std::cout << value;
   }
   
-  CHZ_MEASURE(", sequential indexing took:  %ms")
+  STZ_MEASURE_BLOCK(", sequential indexing took:  %ms")
   for (size_t k = 0; k < vector.size(); ++k)
   {
-    chz::sleep(2);
+    stz::sleep(2);
     std::cout << vector[k];
   }
 
-  CHZ_MEASURE(", parallel iteration took:   %ms")
+  STZ_MEASURE_BLOCK(", parallel iteration took:   %ms")
   pool.parfor(int& value, vector)
   {
-    chz::sleep(2);
+    stz::sleep(2);
     std::cout << value;
   };
 
-  CHZ_MEASURE(", parallel indexing took:    %ms")
+  STZ_MEASURE_BLOCK(", parallel indexing took:    %ms")
   pool.parfor(size_t k, 0, vector.size())
   {
-    chz::sleep(2);
+    stz::sleep(2);
     std::cout << vector[k];
   };
 
