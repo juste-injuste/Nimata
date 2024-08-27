@@ -14,7 +14,7 @@ void work_3(int) {        ++work_count; }
 
 void threadpool_demo()
 {
-  std::cout << fmz::clear;
+  std::cout << stz::clear;
 
   static unsigned  iterations = 0;
   static stz::Pool pool;
@@ -73,7 +73,7 @@ void cyclic_async_demo()
 
 void parfor_demo()
 {
-  std::cout << fmz::clear;
+  std::cout << stz::clear;
 
   static std::vector<int> vector = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
   static stz::Pool        pool;
@@ -109,6 +109,7 @@ void parfor_demo()
   std::cout << "press enter to continue...\n";
   std::cin.get();
 }
+
 
 int main()
 {
