@@ -66,16 +66,6 @@ inline namespace mtz
     static std::ostream dbg(std::clog.rdbuf()); // debugging
   }
 
-  inline namespace _literals
-  {
-    constexpr auto operator""_mHz(long double        frequency) -> std::chrono::nanoseconds;
-    constexpr auto operator""_mHz(unsigned long long frequency) -> std::chrono::nanoseconds;
-    constexpr auto operator""_Hz (long double        frequency) -> std::chrono::nanoseconds;
-    constexpr auto operator""_Hz (unsigned long long frequency) -> std::chrono::nanoseconds;
-    constexpr auto operator""_kHz(long double        frequency) -> std::chrono::nanoseconds;
-    constexpr auto operator""_kHz(unsigned long long frequency) -> std::chrono::nanoseconds;
-  }
-
   namespace _version
   {
 #   define MTZ_VERSION_MAJOR  000
@@ -762,7 +752,8 @@ inline namespace mtz
 # define _mtz_impl_cyclic_async_PRXY(LINE, DURATION) _mtz_impl_cyclic_async_IMPL(LINE,     DURATION)
 # define _mtz_impl_cyclic_async_IMPL(LINE, DURATION) \
     mtz::_impl::_cyclic_async<(DURATION).count()> _mtz_impl_cyclic_async##LINE = [&]() -> void
-
+}
+//----------------------------------------------------------------------------------------------------------------------
   inline namespace _literals
   {
 # if not defined(_stz_impl_LITERALS_FREQUENCY)
@@ -804,7 +795,7 @@ inline namespace mtz
     }
 # endif
   }
-}
+//----------------------------------------------------------------------------------------------------------------------
 }
 //----------------------------------------------------------------------------------------------------------------------
 # undef _mtz_impl_PRAGMA
