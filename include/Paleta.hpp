@@ -48,6 +48,10 @@ inline namespace fmz
   enum { clear };
   enum { reset };
 
+  struct Foreground;
+
+  struct Background;
+
   enum class Colors : uint_fast8_t
   {
     Black           = 30,
@@ -103,22 +107,10 @@ inline namespace fmz
     Single
   };
 
-  struct Foreground;
-
-  struct Background;
-
-  namespace _version
-  {
-#   define FMZ_VERSION_MAJOR  000
-#   define FMZ_VERSION_MINOR  000
-#   define FMZ_VERSION_PATCH  000
-#   define FMZ_VERSION_NUMBER ((FMZ_VERSION_MAJOR  * 1000 + FMZ_VERSION_MINOR) * 1000 + FMZ_VERSION_PATCH)
-
-    constexpr long MAJOR  = FMZ_VERSION_MAJOR;
-    constexpr long MINOR  = FMZ_VERSION_MINOR;
-    constexpr long PATCH  = FMZ_VERSION_PATCH;
-    constexpr long NUMBER = FMZ_VERSION_NUMBER;
-  }
+# define PALETA_MAJOR   000
+# define PALETA_MINOR   000
+# define PALETA_PATCH   000
+# define PALETA_VERSION ((FMZ_VERSION_MAJOR  * 1000 + FMZ_VERSION_MINOR) * 1000 + FMZ_VERSION_PATCH)
 //----------------------------------------------------------------------------------------------------------------------
   namespace _impl
   {

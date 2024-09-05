@@ -49,145 +49,133 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 #if defined(STZ_DEBUGGING)
 # include <cstdio>     // for std::sprintf
 #endif
-//---Nimata library-----------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
 namespace stz
 {
 inline namespace mtz
-//----------------------------------------------------------------------------------------------------------------------
+//*///--summary---------------------------------------------------------------------------------------------------------
 {
   const unsigned MAX_THREADS = std::thread::hardware_concurrency();
 
   class Pool;
 
-  void cyclic_async(size_t period, ...);
+# define cyclic_async(PERIOD)
 
   namespace _io
   {
     static std::ostream dbg(std::clog.rdbuf()); // debugging
   }
 
-  namespace _version
+# define NIMATA_MAJOR   000
+# define NIMATA_MINOR   000
+# define NIMATA_PATCH   000
+# define NIMATA_VERSION ((NIMATA_MAJOR  * 1000 + NIMATA_MINOR) * 1000 + NIMATA_PATCH)
+//*///------------------------------------------------------------------------------------------------------------------
+  namespace _nimata_impl
   {
-#   define MTZ_VERSION_MAJOR  000
-#   define MTZ_VERSION_MINOR  000
-#   define MTZ_VERSION_PATCH  000
-#   define MTZ_VERSION_NUMBER ((MTZ_VERSION_MAJOR  * 1000 + MTZ_VERSION_MINOR) * 1000 + MTZ_VERSION_PATCH)
-
-    constexpr long MAJOR  = MTZ_VERSION_MAJOR;
-    constexpr long MINOR  = MTZ_VERSION_MINOR;
-    constexpr long PATCH  = MTZ_VERSION_PATCH;
-    constexpr long NUMBER = MTZ_VERSION_NUMBER;
-  }
-//---Nimata library: backend--------------------------------------------------------------------------------------------
-  namespace _impl
-  {
-#   define _mtz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
+#   define _stz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
 # if defined(__clang__)
-#   define _mtz_impl_CLANG_IGNORE(WARNING, ...)          \
-      _mtz_impl_PRAGMA(clang diagnostic push)            \
-      _mtz_impl_PRAGMA(clang diagnostic ignored WARNING) \
+#   define _stz_impl_CLANG_IGNORE(WARNING, ...)          \
+      _stz_impl_PRAGMA(clang diagnostic push)            \
+      _stz_impl_PRAGMA(clang diagnostic ignored WARNING) \
       __VA_ARGS__                                        \
-      _mtz_impl_PRAGMA(clang diagnostic pop)
+      _stz_impl_PRAGMA(clang diagnostic pop)
 
-#   define _mtz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
+#   define _stz_impl_GCC_IGNORE(WARNING, ...)       __VA_ARGS__
+#   define _stz_impl_GCC_CLANG_IGNORE(WARNING, ...) _stz_impl_CLANG_IGNORE(WARNING, __VA_ARGS__)
 # elif defined(__GNUC__)
-#   define _mtz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
+#   define _stz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
 
-#   define _mtz_impl_GCC_IGNORE(WARNING, ...)          \
-      _mtz_impl_PRAGMA(GCC diagnostic push)            \
-      _mtz_impl_PRAGMA(GCC diagnostic ignored WARNING) \
+#   define _stz_impl_GCC_IGNORE(WARNING, ...)          \
+      _stz_impl_PRAGMA(GCC diagnostic push)            \
+      _stz_impl_PRAGMA(GCC diagnostic ignored WARNING) \
       __VA_ARGS__                                      \
-      _mtz_impl_PRAGMA(GCC diagnostic pop)
+      _stz_impl_PRAGMA(GCC diagnostic pop)
+#   define _stz_impl_GCC_CLANG_IGNORE(WARNING, ...) _stz_impl_GCC_IGNORE(WARNING, __VA_ARGS__)
 # else
-#   define _mtz_impl_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
-#   define _mtz_impl_GCC_IGNORE(WARNING, ...)   __VA_ARGS__
+#   define _stz_impl_CLANG_IGNORE(WARNING, ...)     __VA_ARGS__
+#   define _stz_impl_GCC_IGNORE(WARNING, ...)       __VA_ARGS__
+#   define _stz_impl_GCC_CLANG_IGNORE(WARNING, ...) __VA_ARGS__
 #endif
-
 
 // support from clang 12.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 12)
 # if __cplusplus < 202002L
-#   define _mtz_impl_LIKELY   _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
-#   define _mtz_impl_UNLIKELY _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[unlikely]])
+#   define _stz_impl_LIKELY   _stz_impl_CLANG_IGNORE("-Wc++20-extensions", [[likely]])
+#   define _stz_impl_UNLIKELY _stz_impl_CLANG_IGNORE("-Wc++20-extensions", [[unlikely]])
 # else
-#   define _mtz_impl_LIKELY   [[likely]]
-#   define _mtz_impl_UNLIKELY [[unlikely]]
+#   define _stz_impl_LIKELY   [[likely]]
+#   define _stz_impl_UNLIKELY [[unlikely]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _mtz_impl_LIKELY   [[likely]]
-#   define _mtz_impl_UNLIKELY [[unlikely]]
+#   define _stz_impl_LIKELY   [[likely]]
+#   define _stz_impl_UNLIKELY [[unlikely]]
 # else
-#   define _mtz_impl_LIKELY
-#   define _mtz_impl_UNLIKELY
+#   define _stz_impl_LIKELY
+#   define _stz_impl_UNLIKELY
 # endif
 
 // support from clang 3.9.0 and GCC 4.7.3 onward
 # if defined(__clang__)
-#   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
-#   define _mtz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _mtz_impl_UNLIKELY
-#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
+#   define _stz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _stz_impl_LIKELY
+#   define _stz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _stz_impl_UNLIKELY
+#   define _stz_impl_NODISCARD           __attribute__((warn_unused_result))
 # elif defined(__GNUC__)
-#   define _mtz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _mtz_impl_LIKELY
-#   define _mtz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _mtz_impl_UNLIKELY
-#   define _mtz_impl_NODISCARD           __attribute__((warn_unused_result))
+#   define _stz_impl_EXPECTED(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 1)) _stz_impl_LIKELY
+#   define _stz_impl_ABNORMAL(CONDITION) (__builtin_expect(static_cast<bool>(CONDITION), 0)) _stz_impl_UNLIKELY
+#   define _stz_impl_NODISCARD           __attribute__((warn_unused_result))
 # else
-#   define _mtz_impl_EXPECTED(CONDITION) (CONDITION) _mtz_impl_LIKELY
-#   define _mtz_impl_ABNORMAL(CONDITION) (CONDITION) _mtz_impl_UNLIKELY
-#   define _mtz_impl_NODISCARD
+#   define _stz_impl_EXPECTED(CONDITION) (CONDITION) _stz_impl_LIKELY
+#   define _stz_impl_ABNORMAL(CONDITION) (CONDITION) _stz_impl_UNLIKELY
+#   define _stz_impl_NODISCARD
 # endif
 
 // support from clang 10.0.0 and GCC 10.1 onward
 # if defined(__clang__) and (__clang_major__ >= 10)
 # if __cplusplus < 202002L
-#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
+#   define _stz_impl_NODISCARD_REASON(REASON) _stz_impl_CLANG_IGNORE("-Wc++20-extensions", [[nodiscard(REASON)]])
 # else
-#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _stz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # endif
 # elif defined(__GNUC__) and (__GNUC__ >= 10)
-#   define _mtz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
+#   define _stz_impl_NODISCARD_REASON(REASON) [[nodiscard(REASON)]]
 # else
-#   define _mtz_impl_NODISCARD_REASON(REASON) _mtz_impl_NODISCARD
+#   define _stz_impl_NODISCARD_REASON(REASON) _stz_impl_NODISCARD
 # endif
 
 # if defined(STZ_DEBUGGING)
     static thread_local char _dbg_buf[128];
     static std::mutex _dbg_mtx;
-    
-#   define _mtz_impl_DEBUG(...)                                      \
-      [&](const char* const caller_){                                \
-        std::sprintf(_impl::_dbg_buf, __VA_ARGS__);                  \
-        std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};          \
-        _io::dbg << caller_ << ": " << _impl::_dbg_buf << std::endl; \
+
+#   define _stz_impl_DEBUG_MESSAGE(...)                                         \
+      [&](const char* const caller_){                                           \
+        std::sprintf(_impl::_dbg_buf, __VA_ARGS__);                             \
+        std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};                     \
+        _io::dbg << "stz: " << caller_ << ": " << _impl::_dbg_buf << std::endl; \
       }(__func__)
 # else
-#   define _mtz_impl_DEBUG(...) void(0)
+#   define _stz_impl_DEBUG_MESSAGE(...) void(0)
 # endif
 
-# if __cplusplus >= 201402L
-#   define _mtz_impl_CONSTEXPR_CPP14 constexpr
-# else
-#   define _mtz_impl_CONSTEXPR_CPP14
-# endif
-
-    inline _mtz_impl_CONSTEXPR_CPP14
+    inline
     auto _compute_number_of_threads(signed N_) noexcept -> unsigned
     {
       if (N_ <= 0)
       {
         N_ += MAX_THREADS;
       }
-      
+
       if (N_ < 1)
       {
-        _mtz_impl_DEBUG("%d threads is not possible, 1 used instead", N_);
+        _stz_impl_DEBUG_MESSAGE("%d threads is not possible, 1 used instead", N_);
         N_ = 1;
       }
 
       if (N_ > static_cast<signed>(MAX_THREADS - 2))
       {
-        _mtz_impl_DEBUG("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
+        _stz_impl_DEBUG_MESSAGE("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
       }
-      
+
       return static_cast<unsigned>(N_);
     }
 
@@ -214,14 +202,14 @@ inline namespace mtz
     private:
       void _loop()
       {
-        while _mtz_impl_EXPECTED(_alive)
+        while _stz_impl_EXPECTED(_alive)
         {
-          if _mtz_impl_EXPECTED(_work_available)
+          if _stz_impl_EXPECTED(_work_available)
           {
             _work();
             _work_available = false;
           }
-          
+
           std::this_thread::yield();
         }
       }
@@ -234,13 +222,13 @@ inline namespace mtz
     template<std::chrono::nanoseconds::rep PERIOD>
     class _cyclic_async final
     {
-      static_assert(PERIOD >= 0, "cyclic_async: 'PERIOD' must be greater or equal to 0.");
+      static_assert(PERIOD >= 0, "stz: cyclic_async: 'PERIOD' must be greater or equal to 0.");
     public:
       template<typename Work>
       _cyclic_async(Work work_) noexcept :
         _work(work_)
       {
-        _mtz_impl_DEBUG("thread spawned.");
+        _stz_impl_DEBUG_MESSAGE("thread spawned.");
       }
 
       _cyclic_async(const _cyclic_async&) noexcept {}
@@ -249,7 +237,7 @@ inline namespace mtz
       {
         _alive = false;
         _worker_thread.join();
-        _mtz_impl_DEBUG("thread joined.");
+        _stz_impl_DEBUG_MESSAGE("thread joined.");
       }
     private:
       inline void _loop();
@@ -257,7 +245,7 @@ inline namespace mtz
       std::function<void()> _work;
       std::thread           _worker_thread{_loop, this};
     };
-    
+
     template<std::chrono::nanoseconds::rep PERIOD>
     void _cyclic_async<PERIOD>::_loop()
     {
@@ -273,9 +261,9 @@ inline namespace mtz
       while (_alive)
       {
         time = clock::now();
-        _mtz_impl_GCC_IGNORE("-Wstrict-overflow", _mtz_impl_CLANG_IGNORE("-Wstrict-overflow",
-        span = std::chrono::nanoseconds{time - last}.count();
-        ))
+        _stz_impl_GCC_CLANG_IGNORE("-Wstrict-overflow",
+        span = std::chrono::nanoseconds(time - last).count();
+        )
 
         if (span >= PERIOD)
         {
@@ -353,11 +341,9 @@ inline namespace mtz
     template<typename F, typename... A>
     using _void = _if_void<decltype(std::declval<F&>()(std::declval<A&>()...))>;
 
-    template<bool D, typename F, typename... A>
+    template<bool detach, typename F, typename... A>
     using _type = typename std::conditional<
-      D,
-      void,
-      std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>
+      detach, void, std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>
     >::type;
 
     template<typename T>
@@ -413,8 +399,7 @@ inline namespace mtz
 
     template<typename T>
     auto _begin(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value
-      and not _has_iter_funcs<T>::value,
+      _has_iter_meths<T>::value and not _has_iter_funcs<T>::value,
       decltype(std::declval<T&>().begin())
     >::type
     {
@@ -432,8 +417,7 @@ inline namespace mtz
 
     template<typename T>
     auto _end(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value
-      and not _has_iter_funcs<T>::value,
+      _has_iter_meths<T>::value and not _has_iter_funcs<T>::value,
       decltype(std::declval<T&>().end())
     >::type
     {
@@ -451,26 +435,26 @@ inline namespace mtz
 
     template<typename T, bool = _is_iterable<T>::value>
     struct _iter_type;
-    
+
     template<typename T>
     struct _iter_type<T, true> final
     {
       using iter = decltype( _begin(std::declval<T&>()));
       using type = decltype(*_begin(std::declval<T&>()));
-      
+
       static constexpr
       type _dereference(iter& data) noexcept
       {
         return *data;
       }
-      
+
       static constexpr
       const type _dereference(const iter& data) noexcept
       {
         return *data;
       }
     };
-    
+
     template<typename T>
     struct _iter_type<T, false> final
     {
@@ -487,7 +471,7 @@ inline namespace mtz
     template<typename type>
     struct _parfor;
   }
-//---Nimata library: frontend struct and class definitions--------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   class Pool final
   {
   public:
@@ -495,17 +479,16 @@ inline namespace mtz
     Pool(signed number_of_threads = MAX_THREADS) noexcept;
 
     template<typename F, typename... A>
-    _mtz_impl_NODISCARD_REASON("push: wrap in a lambda if you don't use the return value.")
     inline // add work that has a return value
-    auto push(F&& function, A&&... arguments) noexcept -> _impl::_future<F, A...>;
+    auto push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_future<F, A...>;
 
     template<typename F, typename... A>
     inline // add work that does not have a return value
-    auto push(F&& function, A&&... arguments) noexcept -> _impl::_void<F, A...>;
+    auto push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_void<F, A...>;
 
-    template<bool D, typename F, typename... A>
+    template<bool detached, typename F, typename... A>
     inline // add work and specify if you want it detached or not
-    auto push(F&& function, A&&... arguments) noexcept -> _impl::_type<D, F, A...>;
+    auto push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_type<detached, F, A...>;
 
     inline // waits for all work to be done
     void wait() const noexcept;
@@ -517,14 +500,14 @@ inline namespace mtz
     void stop() noexcept;
 
     inline // parallel for-loop with index range = [0, 'size')
-    auto parfor(size_t size) noexcept -> _impl::_parfor<size_t>;
-    
+    auto parfor(size_t size) noexcept -> _nimata_impl::_parfor<size_t>;
+
     inline // parallel for-loop with index range = ['from', 'past')
-    auto parfor(size_t from, size_t past) noexcept -> _impl::_parfor<size_t>;
-    
+    auto parfor(size_t from, size_t past) noexcept -> _nimata_impl::_parfor<size_t>;
+
     template<typename iterable>
     inline // parallel for-loop over iterable
-    auto parfor(iterable&& thing) noexcept -> _impl::_parfor<iterable>;
+    auto parfor(iterable&& thing) noexcept -> _nimata_impl::_parfor<iterable>;
 
     inline // get amount of workers
     auto size() const noexcept -> unsigned;
@@ -534,25 +517,25 @@ inline namespace mtz
 
     inline // waits for all work to be done then join threads
     ~Pool() noexcept;
-    
+
   private:
     template<typename>
-    friend struct _impl::_parfor;
+    friend struct _nimata_impl::_parfor;
     inline void _assign() noexcept;
-    std::atomic_bool                  _alive  = {true};
-    std::atomic_bool                  _active = {true};
-    std::atomic_uint                  _size;
-    std::atomic<_impl::_worker*>      _workers;
-    std::mutex                        _queue_mtx;
-    std::queue<std::function<void()>> _queue;
-    std::thread                       _assignation_thread{_assign, this};
+    std::atomic_bool                    _alive  = {true};
+    std::atomic_bool                    _active = {true};
+    std::atomic_uint                    _size;
+    std::atomic<_nimata_impl::_worker*> _workers;
+    std::mutex                          _queue_mtx;
+    std::queue<std::function<void()>>   _queue;
+    std::thread                         _assignation_thread{_assign, this};
     template<typename F, typename... A>
     void push(std::true_type,  F&& function, A&&... arguments) noexcept;
     template<typename F, typename... A>
-    auto push(std::false_type, F&& function, A&&... arguments) noexcept -> _impl::_future<F, A...>;
+    auto push(std::false_type, F&& function, A&&... arguments) noexcept -> _nimata_impl::_future<F, A...>;
   };
-//---Nimata library: backend--------------------------------------------------------------------------------------------
-  namespace _impl
+//*///------------------------------------------------------------------------------------------------------------------
+  namespace _nimata_impl
   {
     template<typename T>
     struct _parfor final
@@ -585,25 +568,26 @@ inline namespace mtz
       const iterator _past;
     };
   }
-//---Nimata library: frontend definitions-------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   Pool::Pool(signed N_) noexcept :
-    _size(_impl::_compute_number_of_threads(N_)),
-    _workers(new _impl::_worker[_size])
+    _size(_nimata_impl::_compute_number_of_threads(N_)),
+    _workers(new _nimata_impl::_worker[_size])
   {
-    _mtz_impl_DEBUG("%u thread%s aquired.", _size, _size == 1 ? "" : "s");
+    _stz_impl_DEBUG_MESSAGE("%u thread%s aquired.", _size, _size == 1 ? "" : "s");
   }
-  
+
   template<typename F, typename... A>
-  auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _impl::_future<F, A...>
+  _stz_impl_NODISCARD_REASON("stz: push: wrap in a lambda if you don't use the return value.")
+  auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _nimata_impl::_future<F, A...>
   {
     return push(
       std::false_type(),
       std::forward<F>(function_),
       std::forward<A>(arguments_)...);
   }
-  
+
   template<typename F, typename... A>
-  auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _impl::_void<F, A...>
+  auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _nimata_impl::_void<F, A...>
   {
     return push(
       std::true_type(),
@@ -614,39 +598,39 @@ inline namespace mtz
   template<typename F, typename... A>
   void Pool::push(std::true_type, F&& function_, A&&... arguments_) noexcept
   {
-    if _mtz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
+    if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(function_) == true)
     {
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
         [=]{ function_(arguments_...); }
       );
 
-      _mtz_impl_DEBUG("pushed a task with no return value.");
+      _stz_impl_DEBUG_MESSAGE("pushed a task with no return value.");
     }
-    else _mtz_impl_DEBUG("null task pushed.");
+    else _stz_impl_DEBUG_MESSAGE("null task pushed.");
 
     return;
   }
 
   template<typename F, typename... A>
-  auto Pool::push(std::false_type, F&& function_, A&&... arguments_) noexcept -> _impl::_future<F, A...>
+  auto Pool::push(std::false_type, F&& function_, A&&... arguments_) noexcept -> _nimata_impl::_future<F, A...>
   {
     using R = decltype(function_(arguments_...));
 
     std::future<R> future;
 
-    if _mtz_impl_EXPECTED(_impl::_validate_callable(function_) == true)
+    if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(function_) == true)
     {
       auto promise = new std::promise<R>;
-      
+
       future = promise->get_future();
-      
+
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
         [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function_(arguments_...)); }
       );
 
-      _mtz_impl_DEBUG("pushed a task with return value.");
+      _stz_impl_DEBUG_MESSAGE("pushed a task with return value.");
     }
-    else _mtz_impl_DEBUG("null task pushed.");
+    else _stz_impl_DEBUG_MESSAGE("null task pushed.");
 
     return future;
   }
@@ -668,10 +652,10 @@ inline namespace mtz
         }
       }
 
-      _mtz_impl_DEBUG("all threads finished their work.");
+      _stz_impl_DEBUG_MESSAGE("all threads finished their work.");
     }
   }
-  
+
   void Pool::work() noexcept
   {
     _active = true;
@@ -686,35 +670,35 @@ inline namespace mtz
   {
     wait();
 
-    _size = _impl::_compute_number_of_threads(N_);
-    
+    _size = _nimata_impl::_compute_number_of_threads(N_);
+
     delete[] _workers;
-    _workers = new _impl::_worker[_size];    
+    _workers = new _nimata_impl::_worker[_size];
   }
 
   auto Pool::size() const noexcept -> unsigned
   {
     return _size;
   }
-  
-  auto Pool::parfor(const size_t from_, const size_t past_) noexcept -> _impl::_parfor<size_t>
+
+  auto Pool::parfor(const size_t from_, const size_t past_) noexcept -> _nimata_impl::_parfor<size_t>
   {
-    return _impl::_parfor<size_t>(this, from_, past_);
+    return _nimata_impl::_parfor<size_t>(this, from_, past_);
   }
 
-  auto Pool::parfor(const size_t size_) noexcept -> _impl::_parfor<size_t>
+  auto Pool::parfor(const size_t size_) noexcept -> _nimata_impl::_parfor<size_t>
   {
-    return _impl::_parfor<size_t>(this, 0, size_);
+    return _nimata_impl::_parfor<size_t>(this, 0, size_);
   }
-  
+
   template<typename iterable>
-  auto Pool::parfor(iterable&& thing_) noexcept -> _impl::_parfor<iterable>
+  auto Pool::parfor(iterable&& thing_) noexcept -> _nimata_impl::_parfor<iterable>
   {
-    return _impl::_parfor<iterable>(this, _impl::_begin(thing_), _impl::_end(thing_));
+    return _nimata_impl::_parfor<iterable>(this, _nimata_impl::_begin(thing_), _nimata_impl::_end(thing_));
   }
 
 # define parfor(PARFOR_VARIABLE_DECLARATION, ...) parfor(__VA_ARGS__) = [&](PARFOR_VARIABLE_DECLARATION) -> void
-
+//*///------------------------------------------------------------------------------------------------------------------
   Pool::~Pool() noexcept
   {
     wait();
@@ -724,14 +708,14 @@ inline namespace mtz
 
     delete[] _workers;
 
-    _mtz_impl_DEBUG("all workers killed.");
+    _stz_impl_DEBUG_MESSAGE("all workers killed.");
   }
 
   void Pool::_assign() noexcept
   {
-    while _mtz_impl_EXPECTED(_alive)
+    while _stz_impl_EXPECTED(_alive)
     {
-      if _mtz_impl_ABNORMAL(_active == false) continue;
+      if _stz_impl_ABNORMAL(_active == false) continue;
 
       for (unsigned k = 0; k < _size; ++k)
       {
@@ -742,18 +726,21 @@ inline namespace mtz
         {
           _workers[k]._task(std::move(_queue.front()));
           _queue.pop();
-          _mtz_impl_DEBUG("assigned to worker thread #%02u.", k);
+          _stz_impl_DEBUG_MESSAGE("assigned to worker thread #%02u.", k);
         }
       }
     }
   }
+//*///------------------------------------------------------------------------------------------------------------------
+# undef cyclic_async
+  constexpr int cyclic_async() noexcept { return 0; };
 
-# define cyclic_async(DURATION)                      _mtz_impl_cyclic_async_PRXY(__LINE__, DURATION)
-# define _mtz_impl_cyclic_async_PRXY(LINE, DURATION) _mtz_impl_cyclic_async_IMPL(LINE,     DURATION)
-# define _mtz_impl_cyclic_async_IMPL(LINE, DURATION) \
-    mtz::_impl::_cyclic_async<(DURATION).count()> _mtz_impl_cyclic_async##LINE = [&]() -> void
+# define _stz_impl_cyclic_async_IMPL(LINE, DURATION) \
+    mtz::_nimata_impl::_cyclic_async<(DURATION).count()> _stz_impl_cyclic_async##LINE = [&]() -> void
+# define _stz_impl_cyclic_async_PRXY(LINE, DURATION) _stz_impl_cyclic_async_IMPL(LINE,     DURATION)
+# define cyclic_async(DURATION)                      _stz_impl_cyclic_async_PRXY(__LINE__, DURATION)
 }
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   inline namespace _literals
   {
 # if not defined(_stz_impl_LITERALS_FREQUENCY)
@@ -781,7 +768,7 @@ inline namespace mtz
     {
       return std::chrono::nanoseconds(static_cast<std::chrono::nanoseconds::rep>(1000000000/frequency_));
     }
-    
+
     constexpr
     auto operator""_kHz(const long double frequency_) -> std::chrono::nanoseconds
     {
@@ -795,21 +782,21 @@ inline namespace mtz
     }
 # endif
   }
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
 }
-//----------------------------------------------------------------------------------------------------------------------
-# undef _mtz_impl_PRAGMA
-# undef _mtz_impl_GCC_IGNORE
-# undef _mtz_impl_CLANG_IGNORE
-# undef _mtz_impl_LIKELY
-# undef _mtz_impl_UNLIKELY
-# undef _mtz_impl_EXPECTED
-# undef _mtz_impl_ABNORMAL
-# undef _mtz_impl_NODISCARD
-# undef _mtz_impl_NODISCARD_REASON
-# undef _mtz_impl_DEBUG
-# undef _mtz_impl_CONSTEXPR_CPP14
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
+# undef _stz_impl_PRAGMA
+# undef _stz_impl_GCC_IGNORE
+# undef _stz_impl_CLANG_IGNORE
+# undef _stz_impl_GCC_CLANG_IGNORE
+# undef _stz_impl_LIKELY
+# undef _stz_impl_UNLIKELY
+# undef _stz_impl_EXPECTED
+# undef _stz_impl_ABNORMAL
+# undef _stz_impl_NODISCARD
+# undef _stz_impl_NODISCARD_REASON
+# undef _stz_impl_DEBUG_MESSAGE
+//*///------------------------------------------------------------------------------------------------------------------
 #else
 #error "mtz: Concurrent threads are required"
 #endif

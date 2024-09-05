@@ -95,14 +95,20 @@ void parfor_demo()
   pool.parfor(int& value, vector)
   {
     stz::sleep(2);
-    std::cout << value;
+    // std::cout << value;
   };
 
   STZ_MEASURE_BLOCK(", parallel indexing took:    %ms")
   pool.parfor(size_t k, 0, vector.size())
   {
     stz::sleep(2);
-    std::cout << vector[k];
+    // std::cout << vector[k];
+  };
+
+  STZ_MEASURE_BLOCK(", anonymous indexing took:    %ms")
+  pool.parfor(..., 0, vector.size())
+  {
+    stz::sleep(2);
   };
 
   std::cout << "press enter to continue...\n";
