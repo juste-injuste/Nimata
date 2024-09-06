@@ -49,12 +49,12 @@ blocks and more. See the included README.MD file for more information.
 # define  _stz_impl_THREADSAFE
 # include <mutex> // for std::mutex, std::lock_guard
 #endif
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
 namespace stz
 {
 inline namespace chronometro
-//----------------------------------------------------------------------------------------------------------------------
-{ 
+//*///------------------------------------------------------------------------------------------------------------------
+{
   // measures the time it takes to execute the following
 # define STZ_MEASURE_BLOCK(...)
 
@@ -82,11 +82,11 @@ inline namespace chronometro
   void sleep(unsigned long long amount) noexcept;
 
   // pause calling thread for 'duration' amount of time
-  template <typename R, typename P>
+  template<typename R, typename P>
   void sleep(std::chrono::duration<R, P> duration) noexcept;
 
-  // execute the following only if its last execution was atleast 'MS' milliseconds prior
-# define STZ_ONLY_EVERY_MS(MS)
+  // execute the following only if its last execution was atleast 'DURATION' prior
+# define if_elapsed(DURATION)
 
   // execute the following only 'N' times
 # define STZ_ONLY_EVERY_N(N)
@@ -97,17 +97,21 @@ inline namespace chronometro
   // break out of a loop when reached 'N' times
 # define STZ_BREAK_AFTER_N(N)
 
-  namespace _io
+  namespace io
   {
     static std::ostream out(std::cout.rdbuf()); // output
+    static std::ostream log(std::clog.rdbuf()); // logging
+    static std::ostream dbg(std::clog.rdbuf()); // debugging
+    static std::ostream wrn(std::cerr.rdbuf()); // warnings
+    static std::ostream err(std::cerr.rdbuf()); // errors
   }
 
 # define CHRONOMETRO_MAJOR    000
 # define CHRONOMETRO_MINOR    000
 # define CHRONOMETRO_PATCH    000
 # define CHRONOMETRO_VERSION ((CHRONOMETRO_MAJOR  * 1000 + CHRONOMETRO_MINOR) * 1000 + CHRONOMETRO_PATCH)
-//----------------------------------------------------------------------------------------------------------------------
-  namespace _impl
+//*///------------------------------------------------------------------------------------------------------------------
+  namespace _chronometro_impl
   {
 # if defined(__clang__)
 #   define _stz_impl_PRAGMA(PRAGMA) _Pragma(#PRAGMA)
@@ -227,7 +231,7 @@ inline namespace chronometro
         static constexpr unsigned long long  factor = FACTOR;             \
         static constexpr double             ifactor = 1.0/FACTOR;         \
       }
-    
+
     _stz_impl_MAKE_UNIT_HELPER_SPECIALIZATION(Unit::ns,  "ns",  1);
     _stz_impl_MAKE_UNIT_HELPER_SPECIALIZATION(Unit::us,  "us",  1000);
     _stz_impl_MAKE_UNIT_HELPER_SPECIALIZATION(Unit::ms,  "ms",  1000000);
@@ -290,11 +294,11 @@ inline namespace chronometro
       // duration <= 10 us
       return _time_as_cstring(_time<Unit::ns, n_decimals>{time_.nanoseconds});
     }
-    
+
     template<Unit unit, unsigned n_decimals>
     std::ostream& operator<<(std::ostream& ostream_, const _time<unit, n_decimals> time_) noexcept
     {
-      return ostream_ << "elapsed time: " << _impl::_time_as_cstring(time_) << std::endl;
+      return ostream_ << "elapsed time: " << _chronometro_impl::_time_as_cstring(time_) << std::endl;
     }
 
     template<Unit unit, unsigned n_decimals>
@@ -363,16 +367,61 @@ inline namespace chronometro
     {
       return integer_ > 0;
     }
+    
+    template<typename R, typename P>
+    constexpr
+    auto _to_ns(const std::chrono::duration<R, P> duration_) -> std::chrono::nanoseconds::rep
+    {
+      return std::chrono::nanoseconds(duration_).count();
+    }
+
+    template<typename type>
+    constexpr
+    auto _to_ns(const type milliseconds_) -> std::chrono::nanoseconds::rep
+    {
+      return std::chrono::nanoseconds(std::chrono::milliseconds(milliseconds_)).count();
+    }
+
+    template<std::chrono::nanoseconds::rep DURATION>
+    struct _if_elapsed
+    {
+      static_assert(DURATION > static_cast<std::chrono::nanoseconds::rep>(0),
+        "stz: if_elapsed: 'DURATION' must be non-zero and positive."
+      );
+
+      template<typename L>
+      void operator=(L&& body_) &&
+      {
+        static _chronometro_impl::_clock::time_point goal = {};
+        constexpr auto diff = std::chrono::nanoseconds(DURATION);
+
+        if (_chronometro_impl::_clock::now() > goal)
+        {
+          goal = _chronometro_impl::_clock::now() + diff;
+
+          body_();
+        }
+      }
+    };
+
+    struct _backdoor final
+    {
+      static inline
+      bool good(Measure& measure_) noexcept;
+
+      static inline
+      void next(Measure& measure_) noexcept;
+    };
   }
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   class Stopwatch
   {
   public:
     inline // return split time
-    auto split() noexcept -> _impl::_time<Unit::automatic, 0>;
+    auto split() noexcept -> _chronometro_impl::_time<Unit::automatic, 0>;
 
     inline // return total time
-    auto total() noexcept -> _impl::_time<Unit::automatic, 0>;
+    auto total() noexcept -> _chronometro_impl::_time<Unit::automatic, 0>;
 
     inline // reset measured times
     void reset() noexcept;
@@ -387,17 +436,17 @@ inline namespace chronometro
 
     inline // RAII-style scoped pause/start
     auto avoid() noexcept -> Guard;
-    
+
     constexpr
     Stopwatch() noexcept = default;
-    
+
   private:
     bool                      _paused         = false;
     std::chrono::nanoseconds  _duration_total = {};
     std::chrono::nanoseconds  _duration_split = {};
-    _impl::_clock::time_point _previous       = _impl::_clock::now();
+    _chronometro_impl::_clock::time_point _previous       = _chronometro_impl::_clock::now();
   };
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   class Measure
   {
     class Iteration;
@@ -443,9 +492,9 @@ inline namespace chronometro
     inline auto view() noexcept -> Iteration;
     inline bool good() noexcept;
     inline void next() noexcept;
-    friend _impl::_backdoor;
+    friend _chronometro_impl::_backdoor;
   };
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   class Measure::Iteration final
   {
     friend Measure;
@@ -465,7 +514,7 @@ inline namespace chronometro
     inline Iteration(unsigned current_iteration, Measure* measurement) noexcept;
     Measure* const _measurement;
   };
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   class Stopwatch::Guard final
   {
     friend Stopwatch;
@@ -484,66 +533,56 @@ inline namespace chronometro
       _stopwatch->start();
     }
   };
-//----------------------------------------------------------------------------------------------------------------------
-  namespace _impl
-  {
-    struct _backdoor
+//*///------------------------------------------------------------------------------------------------------------------
+  namespace _chronometro_impl
+  {  
+    bool _backdoor::good(Measure& measure_) noexcept
     {
-      static
-      bool good(Measure& measure_) noexcept
-      {
-        return measure_.good();
-      }
+      return measure_.good();
+    }
 
-      static
-      void next(Measure& measure_) noexcept
-      {
-        measure_.next();
-      }
-    };
+    void _backdoor::next(Measure& measure_) noexcept
+    {
+      measure_.next();
+    }
   }
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   template<Unit unit>
   void sleep(const unsigned long long amount_) noexcept
   {
-    const auto span = std::chrono::nanoseconds{_impl::_unit_helper<unit>::factor * amount_};
-    const auto goal = span + _impl::_clock::now();
-    while (_impl::_clock::now() < goal);
+    const auto span = std::chrono::nanoseconds{_chronometro_impl::_unit_helper<unit>::factor * amount_};
+    const auto goal = span + _chronometro_impl::_clock::now();
+    while (_chronometro_impl::_clock::now() < goal);
   }
 
-  template <typename R, typename P>
+  template<typename R, typename P>
   void sleep(const std::chrono::duration<R, P> duration_) noexcept
   {
-    const auto goal = _impl::_clock::now() + duration_;
-    while (_impl::_clock::now() < goal);
+    const auto goal = _chronometro_impl::_clock::now() + duration_;
+    while (_chronometro_impl::_clock::now() < goal);
   }
 
   template<>
   void sleep<Unit::automatic>(unsigned long long) noexcept = delete;
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
 # undef STZ_MEASURE_BLOCK
-# define _stz_impl_MEASURE_BLOCK_IMPL(LINE, ...)                               \
-    for (stz::Measure _stz_impl_MEASURE_BLOCK##LINE{__VA_ARGS__};              \
-      stz::chronometro::_impl::_backdoor::good(_stz_impl_MEASURE_BLOCK##LINE); \
-      stz::chronometro::_impl::_backdoor::next(_stz_impl_MEASURE_BLOCK##LINE))
+# define _stz_impl_MEASURE_BLOCK_IMPL(LINE, ...)                              \
+    for (stz::Measure _stz_impl_MEASURE_BLOCK##LINE{__VA_ARGS__};             \
+      stz::_chronometro_impl::_backdoor::good(_stz_impl_MEASURE_BLOCK##LINE); \
+      stz::_chronometro_impl::_backdoor::next(_stz_impl_MEASURE_BLOCK##LINE))
 # define _stz_impl_MEASURE_BLOCK_PRXY(LINE, ...) _stz_impl_MEASURE_BLOCK_IMPL(LINE, __VA_ARGS__)
 # define STZ_MEASURE_BLOCK(...) _stz_impl_MEASURE_BLOCK_PRXY(__LINE__, __VA_ARGS__)
-//----------------------------------------------------------------------------------------------------------------------
-# undef  STZ_ONLY_EVERY_MS
-# define STZ_ONLY_EVERY_MS(MS)                                                    \
-    if ([&]() -> bool {                                                           \
-      static_assert(stz::chronometro::_impl::_is_pos(MS),                         \
-        "STZ_ONLY_EVERY_MS: 'MS' must be a non-zero positive number.");           \
-      constexpr auto _stz_impl_DIFF = std::chrono::nanoseconds(MS*1000000);       \
-      static stz::chronometro::_impl::_clock::time_point _stz_impl_GOAL = {};     \
-      if (stz::chronometro::_impl::_clock::now() > _stz_impl_GOAL)                \
-      {                                                                           \
-        _stz_impl_GOAL = stz::chronometro::_impl::_clock::now() + _stz_impl_DIFF; \
-        return false;                                                             \
-      }                                                                           \
-      return true;                                                                \
-    }()) {} else
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
+# undef if_elapsed
+  template<std::chrono::milliseconds::rep DURATION>
+  constexpr
+  auto if_elapsed() noexcept -> _chronometro_impl::_if_elapsed<DURATION>
+  {
+    return _chronometro_impl::_if_elapsed<DURATION>();
+  }
+
+# define if_elapsed(DURATION) if_elapsed<stz::_chronometro_impl::_to_ns(DURATION)>() = [&]() -> void
+//*///------------------------------------------------------------------------------------------------------------------
 # undef  STZ_ONLY_EVERY_N
 # define _stz_impl_ONLY_EVERY_N_IMPL1(N)                                             \
     if ([&]() -> bool {                                                              \
@@ -570,7 +609,7 @@ inline namespace chronometro
     }()) {} else
 # define _stz_impl_ONLY_EVERY_N_PRXY(_1, _2, N_PARAMS, ...) _stz_impl_ONLY_EVERY_N_IMPL##N_PARAMS
 # define STZ_ONLY_EVERY_N(...) _stz_impl_ONLY_EVERY_N_PRXY(__VA_ARGS__, 2, 1, _)(__VA_ARGS__)
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
 # undef  STZ_LOOP_FOR_N
 # define _stz_impl_LOOP_FOR_N_IMPL(LINE, N)                                        \
     for (unsigned long long _stz_impl_LOOP_FOR_N##LINE = [&]{                      \
@@ -578,7 +617,7 @@ inline namespace chronometro
       return N; }(); _stz_impl_LOOP_FOR_N##LINE; --_stz_impl_LOOP_FOR_N##LINE)
 # define _stz_impl_LOOP_FOR_N_PRXY(LINE, N) _stz_impl_LOOP_FOR_N_IMPL(LINE, N)
 # define STZ_LOOP_FOR_N(N) _stz_impl_LOOP_FOR_N_PRXY(__LINE__, N)
-//----------------------------------------------------------------------------------------------------------------------  
+//*///------------------------------------------------------------------------------------------------------------------
 # undef  STZ_BREAK_AFTER_N
 # define STZ_BREAK_AFTER_N(N)                                                         \
     if ([]{                                                                           \
@@ -587,11 +626,11 @@ inline namespace chronometro
       if (_stz_impl_BREAK_AFTER_N == 0) _stz_impl_BREAK_AFTER_N = N;                  \
       return --_stz_impl_BREAK_AFTER_N;                                               \
     }()) {} else break
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   _stz_impl_NODISCARD_REASON("split: not using the return value makes no sens.")
-  auto Stopwatch::split() noexcept -> _impl::_time<Unit::automatic, 0>
+  auto Stopwatch::split() noexcept -> _chronometro_impl::_time<Unit::automatic, 0>
   {
-    const auto now = _impl::_clock::now();
+    const auto now = _chronometro_impl::_clock::now();
 
     auto split_duration = _duration_split;
     _duration_split     = {};
@@ -601,16 +640,16 @@ inline namespace chronometro
       _duration_total += now - _previous;
       split_duration  += now - _previous;
 
-      _previous = _impl::_clock::now();
+      _previous = _chronometro_impl::_clock::now();
     }
 
-    return _impl::_time<Unit::automatic, 0>{split_duration};
+    return _chronometro_impl::_time<Unit::automatic, 0>{split_duration};
   }
-  
+
   _stz_impl_NODISCARD_REASON("total: not using the return value makes no sens.")
-  auto Stopwatch::total() noexcept -> _impl::_time<Unit::automatic, 0>
+  auto Stopwatch::total() noexcept -> _chronometro_impl::_time<Unit::automatic, 0>
   {
-    const auto now = _impl::_clock::now();
+    const auto now = _chronometro_impl::_clock::now();
 
     auto total_duration = _duration_total;
 
@@ -622,7 +661,7 @@ inline namespace chronometro
       _duration_total = {};
     }
 
-    return _impl::_time<Unit::automatic, 0>{total_duration};
+    return _chronometro_impl::_time<Unit::automatic, 0>{total_duration};
   }
 
   void Stopwatch::reset() noexcept
@@ -631,13 +670,13 @@ inline namespace chronometro
     _duration_split = {};
 
     if (_paused) return;
-    
-    _previous = _impl::_clock::now();
+
+    _previous = _chronometro_impl::_clock::now();
   }
 
   void Stopwatch::pause() noexcept
   {
-    const auto now = _impl::_clock::now();
+    const auto now = _chronometro_impl::_clock::now();
 
     if _stz_impl_ABNORMAL(_paused) return;
 
@@ -653,7 +692,7 @@ inline namespace chronometro
     {
       _paused = false;
 
-      _previous = _impl::_clock::now();
+      _previous = _chronometro_impl::_clock::now();
     }
   }
 
@@ -661,7 +700,7 @@ inline namespace chronometro
   {
     return Guard(this);
   }
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   class Measure::_iterator final
   {
   public:
@@ -688,7 +727,7 @@ inline namespace chronometro
   private:
     Measure* const _measure = nullptr;
   };
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   Measure::Measure(const unsigned iterations_) noexcept :
     _iterations(iterations_),
     _total_fmt((_iterations > 1) ? "total elapsed time: %ms [avg = %Dus]" : "total elapsed time: %ms")
@@ -751,7 +790,7 @@ inline namespace chronometro
   {
     return Iteration(_iterations - _remaining, this);
   }
-  
+
   bool Measure::good() noexcept
   {
     const auto avoid = _stopwatch.avoid();
@@ -765,8 +804,8 @@ inline namespace chronometro
 
     if _stz_impl_EXPECTED(_total_fmt)
     {
-      _stz_impl_DECLARE_LOCK(_impl::_out_mtx);
-      _io::out << _impl::_total_fmt(duration, _total_fmt, _iterations) << std::endl;
+      _stz_impl_DECLARE_LOCK(_chronometro_impl::_out_mtx);
+      io::out << _chronometro_impl::_total_fmt(duration, _total_fmt, _iterations) << std::endl;
     }
 
     return false;
@@ -779,13 +818,13 @@ inline namespace chronometro
 
     if (_split_fmt)
     {
-      _stz_impl_DECLARE_LOCK(_impl::_out_mtx);
-      _io::out << _impl::_split_fmt(split, _split_fmt, _iterations - _remaining) << std::endl;
+      _stz_impl_DECLARE_LOCK(_chronometro_impl::_out_mtx);
+      io::out << _chronometro_impl::_split_fmt(split, _split_fmt, _iterations - _remaining) << std::endl;
     }
 
     --_remaining;
   }
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   Measure::Iteration::Iteration(const unsigned current_iteration_, Measure* const measurement_) noexcept :
     value(current_iteration_),
     _measurement(measurement_)
@@ -806,7 +845,7 @@ inline namespace chronometro
     return _measurement->avoid();
   }
 }
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
   inline namespace _literals
   {
 # if not defined(_stz_impl_LITERALS_FREQUENCY)
@@ -834,7 +873,7 @@ inline namespace chronometro
     {
       return std::chrono::nanoseconds(static_cast<std::chrono::nanoseconds::rep>(1000000000/frequency_));
     }
-    
+
     constexpr
     auto operator""_kHz(const long double frequency_) -> std::chrono::nanoseconds
     {
@@ -848,9 +887,9 @@ inline namespace chronometro
     }
 # endif
   }
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
 }
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
 # undef _stz_impl_PRAGMA
 # undef _stz_impl_CLANG_IGNORE
 # undef _stz_impl_LIKELY
@@ -862,7 +901,7 @@ inline namespace chronometro
 # undef _stz_impl_THREADLOCAL
 # undef _stz_impl_DECLARE_MUTEX
 # undef _stz_impl_DECLARE_LOCK
-//----------------------------------------------------------------------------------------------------------------------
+//*///------------------------------------------------------------------------------------------------------------------
 #else
 #error "stz: Support for ISO C++11 is required."
 #endif

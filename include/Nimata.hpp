@@ -52,7 +52,7 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 //*///------------------------------------------------------------------------------------------------------------------
 namespace stz
 {
-inline namespace mtz
+inline namespace nimata
 //*///--summary---------------------------------------------------------------------------------------------------------
 {
   const unsigned MAX_THREADS = std::thread::hardware_concurrency();
@@ -60,6 +60,13 @@ inline namespace mtz
   class Pool;
 
 # define cyclic_async(PERIOD)
+
+  enum Tracking : uint_fast8_t
+  {
+    Attached,
+    Detached,
+    Inferred
+  };
 
   namespace _io
   {
@@ -218,6 +225,20 @@ inline namespace mtz
       std::atomic_bool      _work_available = {false};
       std::thread           _worker_thread{_loop, this};
     };
+    
+    template<typename R, typename P>
+    constexpr
+    auto _to_ns(const std::chrono::duration<R, P> duration_) -> std::chrono::nanoseconds::rep
+    {
+      return std::chrono::nanoseconds(duration_).count();
+    }
+
+    template<typename type>
+    constexpr
+    auto _to_ns(const type milliseconds_) -> std::chrono::nanoseconds::rep
+    {
+      return std::chrono::nanoseconds(std::chrono::milliseconds(milliseconds_)).count();
+    }
 
     template<std::chrono::nanoseconds::rep PERIOD>
     class _cyclic_async final
@@ -329,21 +350,24 @@ inline namespace mtz
       return true;
     }
 
+    template<typename F, typename... A>
+    using _result = decltype(std::declval<F&>()(std::declval<A&>()...));
+
     template<typename type>
     using _if_type = typename std::enable_if<std::is_same<type, void>::value == false, type>::type;
 
     template<typename F, typename... A>
-    using _future = std::future<_if_type<decltype(std::declval<F&>()(std::declval<A&>()...))>>;
+    using _if_future = std::future<_if_type<_result<F, A...>>>;
 
     template<typename type>
     using _if_void = typename std::enable_if<std::is_same<type, void>::value != false, void>::type;
 
     template<typename F, typename... A>
-    using _void = _if_void<decltype(std::declval<F&>()(std::declval<A&>()...))>;
+    using _void = _if_void<_result<F, A...>>;
 
     template<bool detach, typename F, typename... A>
     using _type = typename std::conditional<
-      detach, void, std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>
+      detach, void, std::future<_result<F, A...>>
     >::type;
 
     template<typename T>
@@ -394,7 +418,10 @@ inline namespace mtz
     struct _is_iterable final
     {
     public:
-      static constexpr bool value = _has_iter_funcs<T>::value || _has_iter_meths<T>::value;
+      static constexpr bool value =
+           _has_iter_funcs<T>::value
+        || _has_iter_meths<T>::value
+        || std::is_pointer<T>::value;
     };
 
     template<typename T>
@@ -431,6 +458,18 @@ inline namespace mtz
     >::type
     {
       return end(std::forward<T>(iterable_));
+    }
+
+    template<typename T>
+    auto _begin(T* pointer_) noexcept -> T*
+    {
+      return pointer_;
+    }
+
+    template<typename T>
+    auto _end(T* pointer_) noexcept -> T*
+    {
+      return pointer_;
     }
 
     template<typename T, bool = _is_iterable<T>::value>
@@ -470,6 +509,36 @@ inline namespace mtz
 
     template<typename type>
     struct _parfor;
+
+    template<typename R>
+    struct _push;
+
+    template<typename F, typename... A>
+    using _auto = typename std::conditional<
+      std::is_same<_result<F, A...>, void>::value,
+      void,
+      std::future<_result<F, A...>>
+    >::type;
+
+    template<typename F, typename... A>
+    using _future = typename std::future<_result<F, A...>>;
+
+    template<Tracking tracking, typename F, typename... A>
+    using _tracking = 
+      typename std::conditional<tracking == Tracking::Detached,
+        void,
+        typename std::conditional<tracking == Tracking::Attached,
+          std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>,
+          typename std::conditional<std::is_same<_result<F, A...>, void>::value,
+            void,
+            std::future<_result<F, A...>>
+          >::type
+        >::type
+      >::type;
+
+    using _attached = std::integral_constant<Tracking, Tracking::Attached>;
+    using _detached = std::integral_constant<Tracking, Tracking::Detached>;
+    using _inferred = std::integral_constant<Tracking, Tracking::Inferred>;
   }
 //*///------------------------------------------------------------------------------------------------------------------
   class Pool final
@@ -478,17 +547,9 @@ inline namespace mtz
     inline // constructs pool
     Pool(signed number_of_threads = MAX_THREADS) noexcept;
 
-    template<typename F, typename... A>
-    inline // add work that has a return value
-    auto push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_future<F, A...>;
-
-    template<typename F, typename... A>
-    inline // add work that does not have a return value
-    auto push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_void<F, A...>;
-
-    template<bool detached, typename F, typename... A>
+    template<Tracking tracking = Tracking::Inferred, typename F, typename... A>
     inline // add work and specify if you want it detached or not
-    auto push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_type<detached, F, A...>;
+    auto push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_tracking<tracking, F, A...>;
 
     inline // waits for all work to be done
     void wait() const noexcept;
@@ -509,6 +570,9 @@ inline namespace mtz
     inline // parallel for-loop over iterable
     auto parfor(iterable&& thing) noexcept -> _nimata_impl::_parfor<iterable>;
 
+    template<typename T, size_t N>
+    auto parfor(T (&array)[N]) noexcept -> _nimata_impl::_parfor<T*>;
+
     inline // get amount of workers
     auto size() const noexcept -> unsigned;
 
@@ -521,6 +585,8 @@ inline namespace mtz
   private:
     template<typename>
     friend struct _nimata_impl::_parfor;
+    template<typename>
+    friend struct _nimata_impl::_push;
     inline void _assign() noexcept;
     std::atomic_bool                    _alive  = {true};
     std::atomic_bool                    _active = {true};
@@ -529,10 +595,15 @@ inline namespace mtz
     std::mutex                          _queue_mtx;
     std::queue<std::function<void()>>   _queue;
     std::thread                         _assignation_thread{_assign, this};
+
     template<typename F, typename... A>
-    void push(std::true_type,  F&& function, A&&... arguments) noexcept;
+    auto push(_nimata_impl::_detached, F&& function, A&&... arguments) noexcept -> void;
+
     template<typename F, typename... A>
-    auto push(std::false_type, F&& function, A&&... arguments) noexcept -> _nimata_impl::_future<F, A...>;
+    auto push(_nimata_impl::_attached, F&& function, A&&... arguments) noexcept -> _nimata_impl::_future<F, A...>;
+
+    template<typename F, typename... A>
+    auto push(_nimata_impl::_inferred, F&& function, A&&... arguments) noexcept -> _nimata_impl::_auto<F, A...>;
   };
 //*///------------------------------------------------------------------------------------------------------------------
   namespace _nimata_impl
@@ -567,6 +638,85 @@ inline namespace mtz
       iterator       _from;
       const iterator _past;
     };
+
+    template<typename R>
+    struct _infer;
+
+    template<>
+    struct _infer<void>
+    {
+      template<typename F, typename... A>
+      static
+      void _impl(Pool* const pool_, F&& function_, A&&... arguments_)
+      {
+        return pool_->push<Tracking::Detached>(function_, arguments_...);
+      }
+    };
+
+    template<typename R>
+    struct _infer
+    {
+      template<typename F, typename... A>
+      static
+      auto _impl(Pool* const pool_, F&& function_, A&&... arguments_) -> std::future<R>
+      {
+        return pool_->push<Tracking::Attached>(function_, arguments_...);
+      }
+    };
+
+    template<>
+    struct _push<void>
+    {
+      template<typename F, typename... A>
+      static
+      auto _impl(Pool* const pool_, F&& function_, A&&... arguments_) -> std::future<void>
+      {
+        std::future<void> future;
+
+        if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(function_) == true)
+        {
+          auto promise = new std::promise<void>;
+
+          std::lock_guard<std::mutex>{pool_->_queue_mtx}, pool_->_queue.push(
+            [=]{ function_(arguments_...), std::unique_ptr<std::promise<void>>(promise)->set_value(); }
+          );
+
+          future = promise->get_future();
+
+          _stz_impl_DEBUG_MESSAGE("pushed an attached task.");
+        }
+        else _stz_impl_DEBUG_MESSAGE("null task pushed.");
+
+        return future;
+      }
+    };
+
+    template<typename R>
+    struct _push
+    {
+      template<typename F, typename... A>
+      static
+      auto _impl(Pool* const pool_, F&& function_, A&&... arguments_) -> std::future<R>
+      {
+        std::future<R> future;
+
+        if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(function_) == true)
+        {
+          auto promise = new std::promise<R>;
+
+          future = promise->get_future();
+
+          std::lock_guard<std::mutex>{pool_->_queue_mtx}, pool_->_queue.push(
+            [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function_(arguments_...)); }
+          );
+
+          _stz_impl_DEBUG_MESSAGE("pushed a task with return value.");
+        }
+        else _stz_impl_DEBUG_MESSAGE("null task pushed.");
+
+        return future;
+      }
+    };
   }
 //*///------------------------------------------------------------------------------------------------------------------
   Pool::Pool(signed N_) noexcept :
@@ -576,27 +726,14 @@ inline namespace mtz
     _stz_impl_DEBUG_MESSAGE("%u thread%s aquired.", _size, _size == 1 ? "" : "s");
   }
 
-  template<typename F, typename... A>
-  _stz_impl_NODISCARD_REASON("stz: push: wrap in a lambda if you don't use the return value.")
-  auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _nimata_impl::_future<F, A...>
+  template<Tracking T, typename F, typename... A>
+  auto Pool::push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_tracking<T, F, A...>
   {
-    return push(
-      std::false_type(),
-      std::forward<F>(function_),
-      std::forward<A>(arguments_)...);
+    return push(std::integral_constant<Tracking, T>(), function, arguments...);
   }
-
+  
   template<typename F, typename... A>
-  auto Pool::push(F&& function_, A&&... arguments_) noexcept -> _nimata_impl::_void<F, A...>
-  {
-    return push(
-      std::true_type(),
-      std::forward<F>(function_),
-      std::forward<A>(arguments_)...);
-  }
-
-  template<typename F, typename... A>
-  void Pool::push(std::true_type, F&& function_, A&&... arguments_) noexcept
+  auto Pool::push(_nimata_impl::_detached, F&& function_, A&&... arguments_) noexcept -> void
   {
     if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(function_) == true)
     {
@@ -612,27 +749,16 @@ inline namespace mtz
   }
 
   template<typename F, typename... A>
-  auto Pool::push(std::false_type, F&& function_, A&&... arguments_) noexcept -> _nimata_impl::_future<F, A...>
+  _stz_impl_NODISCARD_REASON("stz: push: wrap in a lambda if you don't use the return value.")
+  auto Pool::push(_nimata_impl::_attached, F&& function_, A&&... arguments_) noexcept -> _nimata_impl::_future<F, A...>
   {
-    using R = decltype(function_(arguments_...));
+    return _nimata_impl::_push<_nimata_impl::_result<F, A...>>::_impl(this, function_, arguments_...);
+  }
 
-    std::future<R> future;
-
-    if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(function_) == true)
-    {
-      auto promise = new std::promise<R>;
-
-      future = promise->get_future();
-
-      std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
-        [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function_(arguments_...)); }
-      );
-
-      _stz_impl_DEBUG_MESSAGE("pushed a task with return value.");
-    }
-    else _stz_impl_DEBUG_MESSAGE("null task pushed.");
-
-    return future;
+  template<typename F, typename... A>
+  auto Pool::push(_nimata_impl::_inferred, F&& function, A&&... arguments) noexcept -> _nimata_impl::_auto<F, A...>
+  {    
+    return _nimata_impl::_infer<_nimata_impl::_result<F, A...>>::_impl(this, function, arguments...);
   }
 
   void Pool::wait() const noexcept
@@ -697,6 +823,12 @@ inline namespace mtz
     return _nimata_impl::_parfor<iterable>(this, _nimata_impl::_begin(thing_), _nimata_impl::_end(thing_));
   }
 
+  template<typename T, size_t N>
+  auto Pool::parfor(T (&array_)[N]) noexcept -> _nimata_impl::_parfor<T*>
+  {
+    return _nimata_impl::_parfor<T*>(this, array_, array_ + N);
+  }
+
 # define parfor(PARFOR_VARIABLE_DECLARATION, ...) parfor(__VA_ARGS__) = [&](PARFOR_VARIABLE_DECLARATION) -> void
 //*///------------------------------------------------------------------------------------------------------------------
   Pool::~Pool() noexcept
@@ -736,7 +868,7 @@ inline namespace mtz
   constexpr int cyclic_async() noexcept { return 0; };
 
 # define _stz_impl_cyclic_async_IMPL(LINE, DURATION) \
-    mtz::_nimata_impl::_cyclic_async<(DURATION).count()> _stz_impl_cyclic_async##LINE = [&]() -> void
+    _nimata_impl::_cyclic_async<stz::_nimata_impl::_to_ns(DURATION)> _stz_impl_cyclic_async##LINE = [&]() -> void
 # define _stz_impl_cyclic_async_PRXY(LINE, DURATION) _stz_impl_cyclic_async_IMPL(LINE,     DURATION)
 # define cyclic_async(DURATION)                      _stz_impl_cyclic_async_PRXY(__LINE__, DURATION)
 }
@@ -798,9 +930,9 @@ inline namespace mtz
 # undef _stz_impl_DEBUG_MESSAGE
 //*///------------------------------------------------------------------------------------------------------------------
 #else
-#error "mtz: Concurrent threads are required"
+#error "nimata: Concurrent threads are required"
 #endif
 #else
-#error "mtz: Support for ISO C++11 is required"
+#error "nimata: Support for ISO C++11 is required"
 #endif
 #endif
