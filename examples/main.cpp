@@ -8,9 +8,10 @@
 
 static std::atomic_uint work_count;
 
-int  work_1()    { return ++work_count; }
-void work_2()    {        ++work_count; }
-void work_3(int) {        ++work_count; }
+void work_1()    {        ++work_count; }
+void work_2(int) {        ++work_count; }
+int  work_3()    { return ++work_count; }
+int  work_4(int) { return ++work_count; }
 
 void threadpool_demo()
 {
@@ -19,15 +20,29 @@ void threadpool_demo()
   static unsigned  iteratings = 0;
   static stz::Pool pool;
 
-  std::future<int> future;
+  std::future<void> future_1;
+  std::future<void> future_2;
+  std::future<int>  future_3;
+  std::future<int>  future_4;
   STZ_MEASURE_BLOCK()
   {
-    STZ_LOOP_FOR_N(10000)
+    stz::loop_n_times(10000)
     {
-      future = pool.push(work_1);
-      pool.push(work_2);
-      pool.push(work_3, 1);
-    }
+      /* void */ pool.push(work_1   );
+      /* void */ pool.push(work_2, 0);
+      future_3 = pool.push(work_3   );
+      future_4 = pool.push(work_4, 0);
+      
+      future_1 = pool.push<stz::bound>(work_1   );
+      future_2 = pool.push<stz::bound>(work_2, 0);
+      future_3 = pool.push<stz::bound>(work_3   );
+      future_4 = pool.push<stz::bound>(work_4, 0);
+      
+      /* void */ pool.push<stz::stray>(work_1   );
+      /* void */ pool.push<stz::stray>(work_2, 0);
+      /* void */ pool.push<stz::stray>(work_3   );
+      /* void */ pool.push<stz::stray>(work_4, 0);
+    };
     
     pool.wait();
   }

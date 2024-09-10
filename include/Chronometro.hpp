@@ -404,6 +404,23 @@ inline namespace chronometro
       }
     };
 
+    template<unsigned long long N>
+    struct _loop_n_times
+    {
+      static_assert(N > static_cast<unsigned long long>(0),
+        "stz: if_elapsed: 'DURATION' must be non-zero and positive."
+      );
+
+      template<typename L>
+      void operator=(L&& body_) &&
+      {
+        for (unsigned long long n = N; n; --n)
+        {
+          body_();
+        }
+      }
+    };
+
     struct _backdoor final
     {
       static inline
@@ -609,6 +626,15 @@ inline namespace chronometro
     }()) {} else
 # define _stz_impl_ONLY_EVERY_N_PRXY(_1, _2, N_PARAMS, ...) _stz_impl_ONLY_EVERY_N_IMPL##N_PARAMS
 # define STZ_ONLY_EVERY_N(...) _stz_impl_ONLY_EVERY_N_PRXY(__VA_ARGS__, 2, 1, _)(__VA_ARGS__)
+//*///------------------------------------------------------------------------------------------------------------------
+# undef loop_n_times
+  template<unsigned long long N>
+  auto loop_n_times() noexcept -> _chronometro_impl::_loop_n_times<N>
+  {
+    return _chronometro_impl::_loop_n_times<N>();
+  }
+
+# define loop_n_times(N) loop_n_times<N>() = [&]() -> void
 //*///------------------------------------------------------------------------------------------------------------------
 # undef  STZ_LOOP_FOR_N
 # define _stz_impl_LOOP_FOR_N_IMPL(LINE, N)                                        \

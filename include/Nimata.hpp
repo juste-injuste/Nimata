@@ -55,20 +55,23 @@ namespace stz
 inline namespace nimata
 //*///--summary---------------------------------------------------------------------------------------------------------
 {
-  const unsigned MAX_THREADS = std::thread::hardware_concurrency();
+  const unsigned max_threads = std::thread::hardware_concurrency();
 
   class Pool;
 
 # define cyclic_async(PERIOD)
 
-  enum Tracking : uint_fast8_t
+  enum class Tracking : uint_fast8_t
   {
-    Attached,
-    Detached,
-    Inferred
+    bound, // return std::future
+    stray, // return void
+    infer  // return_type == void ? void : std::future
   };
 
-  namespace _io
+  constexpr Tracking bound = Tracking::bound;
+  constexpr Tracking stray = Tracking::stray;
+
+  namespace io
   {
     static std::ostream dbg(std::clog.rdbuf()); // debugging
   }
@@ -154,11 +157,11 @@ inline namespace nimata
     static thread_local char _dbg_buf[128];
     static std::mutex _dbg_mtx;
 
-#   define _stz_impl_DEBUG_MESSAGE(...)                                         \
-      [&](const char* const caller_){                                           \
-        std::sprintf(_impl::_dbg_buf, __VA_ARGS__);                             \
-        std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};                     \
-        _io::dbg << "stz: " << caller_ << ": " << _impl::_dbg_buf << std::endl; \
+#   define _stz_impl_DEBUG_MESSAGE(...)                                        \
+      [&](const char* const caller_){                                          \
+        std::sprintf(_impl::_dbg_buf, __VA_ARGS__);                            \
+        std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};                    \
+        io::dbg << "stz: " << caller_ << ": " << _impl::_dbg_buf << std::endl; \
       }(__func__)
 # else
 #   define _stz_impl_DEBUG_MESSAGE(...) void(0)
@@ -169,7 +172,7 @@ inline namespace nimata
     {
       if (N_ <= 0)
       {
-        N_ += MAX_THREADS;
+        N_ += max_threads;
       }
 
       if (N_ < 1)
@@ -178,9 +181,9 @@ inline namespace nimata
         N_ = 1;
       }
 
-      if (N_ > static_cast<signed>(MAX_THREADS - 2))
+      if (N_ > static_cast<signed>(max_threads - 2))
       {
-        _stz_impl_DEBUG_MESSAGE("MAX_THREADS - 2 is the recommended maximum amount of threads, %d used", N_);
+        _stz_impl_DEBUG_MESSAGE("max_threads - 2 is the recommended maximum amount of threads, %d used", N_);
       }
 
       return static_cast<unsigned>(N_);
@@ -337,38 +340,16 @@ inline namespace nimata
     >::type;
 
     template<typename F>
-    constexpr
     auto _validate_callable(const F& function_) noexcept -> _if_can_validate_callable<F>
     {
       return static_cast<bool>(function_);
     }
 
     template<typename F>
-    constexpr
     auto _validate_callable(const F& function_) noexcept -> _no_can_validate_callable<F>
     {
       return true;
     }
-
-    template<typename F, typename... A>
-    using _result = decltype(std::declval<F&>()(std::declval<A&>()...));
-
-    template<typename type>
-    using _if_type = typename std::enable_if<std::is_same<type, void>::value == false, type>::type;
-
-    template<typename F, typename... A>
-    using _if_future = std::future<_if_type<_result<F, A...>>>;
-
-    template<typename type>
-    using _if_void = typename std::enable_if<std::is_same<type, void>::value != false, void>::type;
-
-    template<typename F, typename... A>
-    using _void = _if_void<_result<F, A...>>;
-
-    template<bool detach, typename F, typename... A>
-    using _type = typename std::conditional<
-      detach, void, std::future<_result<F, A...>>
-    >::type;
 
     template<typename T>
     struct _has_iter_meths final
@@ -481,14 +462,14 @@ inline namespace nimata
       using iter = decltype( _begin(std::declval<T&>()));
       using type = decltype(*_begin(std::declval<T&>()));
 
-      static constexpr
-      type _dereference(iter& data) noexcept
+      static
+      type _deref(iter& data) noexcept
       {
         return *data;
       }
 
-      static constexpr
-      const type _dereference(const iter& data) noexcept
+      static
+      const type _deref(const iter& data) noexcept
       {
         return *data;
       }
@@ -500,18 +481,15 @@ inline namespace nimata
       using iter = T;
       using type = T;
 
-      static constexpr
-      type _dereference(const iter data) noexcept
+      static
+      type _deref(const iter data) noexcept
       {
         return data;
       }
     };
 
-    template<typename type>
-    struct _parfor;
-
-    template<typename R>
-    struct _push;
+    template<typename F, typename... A>
+    using _result = decltype(std::declval<F&>()(std::declval<A&>()...));
 
     template<typename F, typename... A>
     using _auto = typename std::conditional<
@@ -525,9 +503,9 @@ inline namespace nimata
 
     template<Tracking tracking, typename F, typename... A>
     using _tracking = 
-      typename std::conditional<tracking == Tracking::Detached,
+      typename std::conditional<tracking == Tracking::stray,
         void,
-        typename std::conditional<tracking == Tracking::Attached,
+        typename std::conditional<tracking == Tracking::bound,
           std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>,
           typename std::conditional<std::is_same<_result<F, A...>, void>::value,
             void,
@@ -536,18 +514,24 @@ inline namespace nimata
         >::type
       >::type;
 
-    using _attached = std::integral_constant<Tracking, Tracking::Attached>;
-    using _detached = std::integral_constant<Tracking, Tracking::Detached>;
-    using _inferred = std::integral_constant<Tracking, Tracking::Inferred>;
+    using _attached = std::integral_constant<Tracking, Tracking::bound>;
+    using _detached = std::integral_constant<Tracking, Tracking::stray>;
+    using _inferred = std::integral_constant<Tracking, Tracking::infer>;
+
+    template<typename type>
+    struct _parfor;
+
+    template<typename R>
+    struct _push;
   }
 //*///------------------------------------------------------------------------------------------------------------------
   class Pool final
   {
   public:
     inline // constructs pool
-    Pool(signed number_of_threads = MAX_THREADS) noexcept;
+    Pool(signed number_of_threads = max_threads) noexcept;
 
-    template<Tracking tracking = Tracking::Inferred, typename F, typename... A>
+    template<Tracking tracking = Tracking::infer, typename F, typename... A>
     inline // add work and specify if you want it detached or not
     auto push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_tracking<tracking, F, A...>;
 
@@ -598,10 +582,8 @@ inline namespace nimata
 
     template<typename F, typename... A>
     auto push(_nimata_impl::_detached, F&& function, A&&... arguments) noexcept -> void;
-
     template<typename F, typename... A>
     auto push(_nimata_impl::_attached, F&& function, A&&... arguments) noexcept -> _nimata_impl::_future<F, A...>;
-
     template<typename F, typename... A>
     auto push(_nimata_impl::_inferred, F&& function, A&&... arguments) noexcept -> _nimata_impl::_auto<F, A...>;
   };
@@ -627,7 +609,7 @@ inline namespace nimata
 
           for (iterator iter = _from; iter != _past; ++iter)
           {
-            _pool->_queue.push([=]{ body(_iter_type<T>::_dereference(iter)); });
+            _pool->_queue.push([=]{ body(_iter_type<T>::_deref(iter)); });
           }
         }
 
@@ -649,7 +631,7 @@ inline namespace nimata
       static
       void _impl(Pool* const pool_, F&& function_, A&&... arguments_)
       {
-        return pool_->push<Tracking::Detached>(function_, arguments_...);
+        return pool_->push<Tracking::stray>(function_, arguments_...);
       }
     };
 
@@ -660,7 +642,7 @@ inline namespace nimata
       static
       auto _impl(Pool* const pool_, F&& function_, A&&... arguments_) -> std::future<R>
       {
-        return pool_->push<Tracking::Attached>(function_, arguments_...);
+        return pool_->push<Tracking::bound>(function_, arguments_...);
       }
     };
 
@@ -757,7 +739,7 @@ inline namespace nimata
 
   template<typename F, typename... A>
   auto Pool::push(_nimata_impl::_inferred, F&& function, A&&... arguments) noexcept -> _nimata_impl::_auto<F, A...>
-  {    
+  {
     return _nimata_impl::_infer<_nimata_impl::_result<F, A...>>::_impl(this, function, arguments...);
   }
 
@@ -865,7 +847,7 @@ inline namespace nimata
   }
 //*///------------------------------------------------------------------------------------------------------------------
 # undef cyclic_async
-  constexpr int cyclic_async() noexcept { return 0; };
+  void cyclic_async();
 
 # define _stz_impl_cyclic_async_IMPL(LINE, DURATION) \
     _nimata_impl::_cyclic_async<stz::_nimata_impl::_to_ns(DURATION)> _stz_impl_cyclic_async##LINE = [&]() -> void
