@@ -405,6 +405,9 @@ inline namespace nimata
         || std::is_pointer<T>::value;
     };
 
+    template<typename type>
+    using _if_iterable = typename std::enable_if<_is_iterable<type>::value>::type;
+
     template<typename T>
     auto _begin(T&& iterable_) noexcept -> typename std::enable_if<
       _has_iter_meths<T>::value and not _has_iter_funcs<T>::value,
@@ -506,7 +509,7 @@ inline namespace nimata
       typename std::conditional<tracking == Tracking::stray,
         void,
         typename std::conditional<tracking == Tracking::bound,
-          std::future<decltype(std::declval<F&>()(std::declval<A&>()...))>,
+          std::future<_result<F, A...>>,
           typename std::conditional<std::is_same<_result<F, A...>, void>::value,
             void,
             std::future<_result<F, A...>>
@@ -525,7 +528,7 @@ inline namespace nimata
     struct _push;
   }
 //*///------------------------------------------------------------------------------------------------------------------
-  class Pool final
+  class Pool
   {
   public:
     inline // constructs pool
@@ -550,7 +553,7 @@ inline namespace nimata
     inline // parallel for-loop with index range = ['from', 'past')
     auto parfor(size_t from, size_t past) noexcept -> _nimata_impl::_parfor<size_t>;
 
-    template<typename iterable>
+    template<typename iterable, typename = _nimata_impl::_if_iterable<iterable>>
     inline // parallel for-loop over iterable
     auto parfor(iterable&& thing) noexcept -> _nimata_impl::_parfor<iterable>;
 
@@ -799,7 +802,7 @@ inline namespace nimata
     return _nimata_impl::_parfor<size_t>(this, 0, size_);
   }
 
-  template<typename iterable>
+  template<typename iterable, typename>
   auto Pool::parfor(iterable&& thing_) noexcept -> _nimata_impl::_parfor<iterable>
   {
     return _nimata_impl::_parfor<iterable>(this, _nimata_impl::_begin(thing_), _nimata_impl::_end(thing_));
