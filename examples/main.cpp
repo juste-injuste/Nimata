@@ -24,7 +24,7 @@ void threadpool_demo()
   std::future<void> future_2;
   std::future<int>  future_3;
   std::future<int>  future_4;
-  STZ_MEASURE_BLOCK()
+  stz::measure_block()
   {
     stz::loop_n_times(10000)
     {
@@ -45,7 +45,7 @@ void threadpool_demo()
     };
     
     pool.wait();
-  }
+  };
 
   std::cout << "iterating:          " << ++iteratings << '\n';
   std::cout << "completed work:     " <<   work_count << '\n';
@@ -84,6 +84,14 @@ void cyclic_async_demo()
   std::cin.get();
 }
 
+template<typename, typename>
+struct index
+{
+  size_t operator=(size_t k) { idx = k; return idx; }
+  size_t idx;
+  operator size_t() { return idx; }
+};
+
 void parfor_demo()
 {
   std::cout << stz::clear;
@@ -91,60 +99,76 @@ void parfor_demo()
   static std::vector<int> vector  = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
   static stz::Pool pool;
 
-  STZ_MEASURE_BLOCK(", vector iterating sequential took: %ms")
-  for (int& value : vector)
+  stz::measure_block(", vector iterating sequential took: %ms")
   {
-    stz::sleep(2);
-    std::cout << value;
-  }
-
-  STZ_MEASURE_BLOCK(", vector iterating parallel   took: %ms")
-  pool.parfor(int& value, vector)
-  {
-    stz::sleep(2);
-    std::cout << value;
-  };
-  
-  STZ_MEASURE_BLOCK(", vector indexing  sequential took: %ms")
-  for (size_t k = 0; k < vector.size(); ++k)
-  {
-    stz::sleep(2);
-    std::cout << vector[k];
-  }
-
-  STZ_MEASURE_BLOCK(", vector indexing  parallel   took: %ms")
-  pool.parfor(size_t k, 0, vector.size())
-  {
-    stz::sleep(2);
-    std::cout << vector[k];
+    for (int& value : vector)
+    {
+      stz::sleep(2);
+      std::cout << value;
+    }
   };
 
-  STZ_MEASURE_BLOCK(", array  iterating sequential took: %ms")
-  for (int& value : array)
+  stz::measure_block(", vector iterating parallel   took: %ms")
   {
-    stz::sleep(2);
-    std::cout << value;
-  }
-
-  STZ_MEASURE_BLOCK(", array  iterating parallel   took: %ms")
-  pool.parfor(int& value, array)
-  {
-    stz::sleep(2);
-    std::cout << value;
+    pool.parfor(int& value, vector)
+    {
+      stz::sleep(2);
+      std::cout << value;
+    };
   };
-  
-  STZ_MEASURE_BLOCK(", array  indexing  sequential took: %ms")
-  for (size_t k = 0; k < (sizeof(array)/sizeof(*array)); ++k)
-  {
-    stz::sleep(2);
-    std::cout << array[k];
-  }
 
-  STZ_MEASURE_BLOCK(", array  indexing  parallel   took: %ms")
-  pool.parfor(size_t k, sizeof(array)/sizeof(*array))
+  stz::measure_block(", vector indexing  sequential took: %ms")
   {
-    stz::sleep(2);
-    std::cout << array[k];
+    for (size_t k = 0; k < vector.size(); ++k)
+    {
+      stz::sleep(2);
+      std::cout << vector[k];
+    }
+  };
+
+  stz::measure_block(", vector indexing  parallel   took: %ms")
+  {
+    pool.parfor(size_t k, 0, vector.size())
+    {
+      stz::sleep(2);
+      std::cout << vector[k];
+    };
+  };
+
+  stz::measure_block(", array  iterating sequential took: %ms")
+  {
+    for (int& value : array)
+    {
+      stz::sleep(2);
+      std::cout << value;
+    }
+  };
+
+  stz::measure_block(", array  iterating parallel   took: %ms")
+  {
+    pool.parfor(int& value, array)
+    {
+      stz::sleep(2);
+      std::cout << value;
+    };
+  };
+
+  stz::measure_block(", array  indexing  sequential took: %ms")
+  {
+    for (size_t k = 0; k < (sizeof(array)/sizeof(*array)); ++k)
+    {
+      stz::sleep(2);
+      std::cout << array[k];
+    }
+  };
+
+  stz::measure_block(", array  indexing  parallel   took: %ms")
+  {
+    pool.parfor(size_t k, sizeof(array)/sizeof(*array))
+    {
+      stz::sleep(2);
+      std::cout << array[k];
+    };
   };
 
   std::cout << "press enter to continue...\n";
