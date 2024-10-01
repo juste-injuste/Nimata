@@ -43,7 +43,7 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 #include <ostream>     // for std::ostream
 #include <iostream>    // for std::clog
 #include <memory>      // for std::unique_ptr
-#include <utility>     // for std::declval
+#include <utility>     // for std::declval, std::move
 #include <type_traits> // for std::is_function, std::is_same, std::enable_if, std::conditional, std:: true_type, std::false_type
 //---conditionally necessary standard libraries-------------------------------------------------------------------------
 #if defined(STZ_DEBUGGING)
@@ -71,10 +71,13 @@ inline namespace nimata
   constexpr Tracking bound = Tracking::bound;
   constexpr Tracking stray = Tracking::stray;
 
-  namespace io
+  struct io
   {
-    static std::ostream dbg(std::clog.rdbuf()); // debugging
-  }
+    static std::ostream& out(); // output
+    static std::ostream& dbg(); // debugging
+    static std::ostream& wrn(); // warning
+    static std::ostream& err(); // errors
+  };
 
 # define NIMATA_MAJOR   000
 # define NIMATA_MINOR   000
@@ -154,14 +157,43 @@ inline namespace nimata
 # endif
 
 # if defined(STZ_DEBUGGING)
+#   if   (STZ_DEBUGGING + 0) >= 3
+#     define _stz_impl_DBG_LVL_3(...) __VA_ARGS__
+#     define _stz_impl_DBG_LVL_2(...) __VA_ARGS__
+#     define _stz_impl_DBG_LVL_1(...) __VA_ARGS__
+#     define _stz_impl_DBG_LVL_0(...) __VA_ARGS__
+#   elif (STZ_DEBUGGING + 0) >= 2
+#     define _stz_impl_DBG_LVL_3(...)
+#     define _stz_impl_DBG_LVL_2(...) __VA_ARGS__
+#     define _stz_impl_DBG_LVL_1(...) __VA_ARGS__
+#     define _stz_impl_DBG_LVL_0(...) __VA_ARGS__
+#   elif (STZ_DEBUGGING + 0) >= 1
+#     define _stz_impl_DBG_LVL_3(...)
+#     define _stz_impl_DBG_LVL_2(...)
+#     define _stz_impl_DBG_LVL_1(...) __VA_ARGS__
+#     define _stz_impl_DBG_LVL_0(...) __VA_ARGS__
+#   elif (STZ_DEBUGGING + 0) >= 0
+#     define _stz_impl_DBG_LVL_3(...)
+#     define _stz_impl_DBG_LVL_2(...)
+#     define _stz_impl_DBG_LVL_1(...)
+#     define _stz_impl_DBG_LVL_0(...) __VA_ARGS__
+#   endif
+# else
+#   define _stz_impl_DBG_LVL_3(...)
+#   define _stz_impl_DBG_LVL_2(...)
+#   define _stz_impl_DBG_LVL_1(...)
+#   define _stz_impl_DBG_LVL_0(...)
+# endif
+
+# if defined(STZ_DEBUGGING)
     static thread_local char _dbg_buf[128];
     static std::mutex _dbg_mtx;
 
-#   define _stz_impl_DEBUG_MESSAGE(...)                                        \
-      [&](const char* const caller_){                                          \
-        std::sprintf(_impl::_dbg_buf, __VA_ARGS__);                            \
-        std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};                    \
-        io::dbg << "stz: " << caller_ << ": " << _impl::_dbg_buf << std::endl; \
+#   define _stz_impl_DEBUG_MESSAGE(...)                                          \
+      [&](const char* const caller_){                                            \
+        std::sprintf(_impl::_dbg_buf, __VA_ARGS__);                              \
+        std::lock_guard<std::mutex> _lock{_impl::_dbg_mtx};                      \
+        io::dbg() << "stz: " << caller_ << ": " << _impl::_dbg_buf << std::endl; \
       }(__func__)
 # else
 #   define _stz_impl_DEBUG_MESSAGE(...) void(0)
@@ -177,13 +209,16 @@ inline namespace nimata
 
       if (N_ < 1)
       {
-        _stz_impl_DEBUG_MESSAGE("%d threads is not possible, 1 used instead", N_);
+        _stz_impl_DBG_LVL_0(
+        _stz_impl_DEBUG_MESSAGE("%d threads is not possible, 1 used instead", N_);)
+
         N_ = 1;
       }
 
       if (N_ > static_cast<signed>(max_threads - 2))
       {
-        _stz_impl_DEBUG_MESSAGE("max_threads - 2 is the recommended maximum amount of threads, %d used", N_);
+        _stz_impl_DBG_LVL_0(
+        _stz_impl_DEBUG_MESSAGE("max_threads - 2 is the recommended maximum amount of threads, %d used", N_);)
       }
 
       return static_cast<unsigned>(N_);
@@ -229,16 +264,16 @@ inline namespace nimata
       std::thread           _worker_thread{_loop, this};
     };
     
-    template<typename R, typename P>
+    template<typename Representation, typename Period>
     constexpr
-    auto _to_ns(const std::chrono::duration<R, P> duration_) -> std::chrono::nanoseconds::rep
+    auto _to_ns(const std::chrono::duration<Representation, Period> duration_) -> std::chrono::nanoseconds::rep
     {
       return std::chrono::nanoseconds(duration_).count();
     }
 
-    template<typename type>
+    template<typename Type>
     constexpr
-    auto _to_ns(const type milliseconds_) -> std::chrono::nanoseconds::rep
+    auto _to_ns(const Type milliseconds_) -> std::chrono::nanoseconds::rep
     {
       return std::chrono::nanoseconds(std::chrono::milliseconds(milliseconds_)).count();
     }
@@ -249,10 +284,10 @@ inline namespace nimata
       static_assert(PERIOD >= 0, "stz: cyclic_async: 'PERIOD' must be greater or equal to 0.");
     public:
       template<typename Work>
-      _cyclic_async(Work work_) noexcept :
-        _work(work_)
+      _cyclic_async(Work work_) noexcept
+        : _work(work_)
       {
-        _stz_impl_DEBUG_MESSAGE("thread spawned.");
+        _stz_impl_DBG_LVL_3(_stz_impl_DEBUG_MESSAGE("thread spawned.");)
       }
 
       _cyclic_async(const _cyclic_async&) noexcept
@@ -262,7 +297,8 @@ inline namespace nimata
       {
         _alive = false;
         _worker_thread.join();
-        _stz_impl_DEBUG_MESSAGE("thread joined.");
+        
+        _stz_impl_DBG_LVL_3(_stz_impl_DEBUG_MESSAGE("thread joined.");)
       }
     private:
       inline void _loop();
@@ -308,163 +344,163 @@ inline namespace nimata
       }
     }
 
-    template<typename T>
+    template<typename Type>
     struct _can_convert_to_bool final
     {
     private:
-      template<typename T_>
+      template<typename Type_>
       static
       auto _impl(int) -> decltype
       (
-        void(static_cast<bool>(std::declval<T_&>())),
+        void(static_cast<bool>(std::declval<Type_&>())),
         std::true_type()
       );
 
-      template<typename T_>
+      template<typename Type_>
       static
       auto _impl(...) -> std::false_type;
 
     public:
-      static constexpr bool value = decltype(_impl<T>(0))();
+      static constexpr bool value = decltype(_impl<Type>(0))();
     };
 
-    template<typename T, typename R = bool>
+    template<typename Type, typename Result = bool>
     using _if_can_validate_callable = typename std::enable_if<
-      _can_convert_to_bool<T>::value == true
-      and std::is_function<T>::value != true, R
+      _can_convert_to_bool<Type>::value == true
+      and std::is_function<Type>::value != true, Result
     >::type;
 
-    template<typename T, typename R = bool>
+    template<typename Type, typename Result = bool>
     using _no_can_validate_callable = typename std::enable_if<
-      _can_convert_to_bool<T>::value != true
-      or  std::is_function<T>::value == true, R
+      _can_convert_to_bool<Type>::value != true
+      or  std::is_function<Type>::value == true, Result
     >::type;
 
-    template<typename F>
-    auto _validate_callable(const F& function_) noexcept -> _if_can_validate_callable<F>
+    template<typename Callable>
+    auto _validate_callable(const Callable& callable_) noexcept -> _if_can_validate_callable<Callable>
     {
-      return static_cast<bool>(function_);
+      return static_cast<bool>(callable_);
     }
 
-    template<typename F>
-    auto _validate_callable(const F& function_) noexcept -> _no_can_validate_callable<F>
+    template<typename Callable>
+    auto _validate_callable(const Callable&) noexcept -> _no_can_validate_callable<Callable>
     {
       return true;
     }
 
-    template<typename T>
+    template<typename Type>
     struct _has_iter_meths final
     {
     private:
-      template<typename T_>
+      template<typename Type_>
       static
       auto _impl(int) -> decltype
       (
-        void(  std::declval<T_&>().begin() != std::declval<T_&>().end()),
-        void(++std::declval<T_&>().begin()),
-        void( *std::declval<T_&>().begin()),
+        void(  std::declval<Type_&>().begin() != std::declval<Type_&>().end()),
+        void(++std::declval<Type_&>().begin()),
+        void( *std::declval<Type_&>().begin()),
         std::true_type()
       );
 
-      template<typename T_>
+      template<typename Type_>
       static
       auto _impl(...) -> std::false_type;
 
     public:
-      static constexpr bool value = decltype(_impl<T>(0))();
+      static constexpr bool value = decltype(_impl<Type>(0))();
     };
 
-    template<typename T>
+    template<typename Type>
     struct _has_iter_funcs final
     {
     private:
-      template<typename T_>
+      template<typename Type_>
       static
       auto _impl(int) -> decltype
       (
-        void(  begin(std::declval<T_&>()) != end(std::declval<T_&>())),
-        void(++begin(std::declval<T_&>())),
-        void( *begin(std::declval<T_&>())),
+        void(  begin(std::declval<Type_&>()) != end(std::declval<Type_&>())),
+        void(++begin(std::declval<Type_&>())),
+        void( *begin(std::declval<Type_&>())),
         std::true_type()
       );
 
-      template<typename T_>
+      template<typename Type_>
       static
       auto _impl(...) -> std::false_type;
 
     public:
-      static constexpr bool value = decltype(_impl<T>(0))();
+      static constexpr bool value = decltype(_impl<Type>(0))();
     };
 
-    template<typename T>
+    template<typename Type>
     struct _is_iterable final
     {
     public:
       static constexpr bool value =
-           _has_iter_funcs<T>::value
-        || _has_iter_meths<T>::value
-        || std::is_pointer<T>::value;
+           _has_iter_funcs<Type>::value
+        || _has_iter_meths<Type>::value
+        || std::is_pointer<Type>::value;
     };
 
-    template<typename type>
-    using _if_iterable = typename std::enable_if<_is_iterable<type>::value>::type;
+    template<typename Type>
+    using _if_iterable = typename std::enable_if<_is_iterable<Type>::value>::type;
 
-    template<typename T>
-    auto _begin(T&& iterable_) noexcept-> typename std::enable_if<
-      _has_iter_meths<T>::value and not _has_iter_funcs<T>::value,
-      decltype(std::declval<T&>().begin())
+    template<typename Type>
+    auto _begin(Type&& iterable_) noexcept -> typename std::enable_if<
+      _has_iter_meths<Type>::value and not _has_iter_funcs<Type>::value,
+      decltype(std::declval<Type&>().begin())
     >::type
     {
       return iterable_.begin();
     }
 
-    template<typename T>
-    auto _begin(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_funcs<T>::value,
-      decltype(begin(std::declval<T&>()))
+    template<typename Type>
+    auto _begin(Type&& iterable_) noexcept -> typename std::enable_if<
+      _has_iter_funcs<Type>::value,
+      decltype(begin(std::declval<Type&>()))
     >::type
     {
-      return begin(std::forward<T>(iterable_));
+      return begin(std::forward<Type>(iterable_));
     }
 
-    template<typename T>
-    auto _end(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_meths<T>::value and not _has_iter_funcs<T>::value,
-      decltype(std::declval<T&>().end())
+    template<typename Type>
+    auto _end(Type&& iterable_) noexcept -> typename std::enable_if<
+      _has_iter_meths<Type>::value and not _has_iter_funcs<Type>::value,
+      decltype(std::declval<Type&>().end())
     >::type
     {
       return iterable_.end();
     }
 
-    template<typename T>
-    auto _end(T&& iterable_) noexcept -> typename std::enable_if<
-      _has_iter_funcs<T>::value,
-      decltype(end(std::declval<T&>()))
+    template<typename Type>
+    auto _end(Type&& iterable_) noexcept -> typename std::enable_if<
+      _has_iter_funcs<Type>::value,
+      decltype(end(std::declval<Type&>()))
     >::type
     {
-      return end(std::forward<T>(iterable_));
+      return end(std::forward<Type>(iterable_));
     }
 
-    template<typename T>
-    auto _begin(T* pointer_) noexcept -> T*
+    template<typename Type>
+    auto _begin(Type* pointer_) noexcept -> Type*
     {
       return pointer_;
     }
 
-    template<typename T>
-    auto _end(T* pointer_) noexcept -> T*
+    template<typename Type>
+    auto _end(Type* pointer_) noexcept -> Type*
     {
       return pointer_;
     }
 
-    template<typename T, bool = _is_iterable<T>::value>
+    template<typename Type, bool = _is_iterable<Type>::value>
     struct _iter_type;
 
-    template<typename T>
-    struct _iter_type<T, true> final
+    template<typename Type>
+    struct _iter_type<Type, true> final
     {
-      using iter = decltype( _begin(std::declval<T&>()));
-      using type = decltype(*_begin(std::declval<T&>()));
+      using iter = decltype( _begin(std::declval<Type&>()));
+      using type = decltype(*_begin(std::declval<Type&>()));
 
       static
       type _deref(iter& data) noexcept
@@ -479,11 +515,11 @@ inline namespace nimata
       }
     };
 
-    template<typename T>
-    struct _iter_type<T, false> final
+    template<typename Type>
+    struct _iter_type<Type, false> final
     {
-      using iter = T;
-      using type = T;
+      using iter = Type;
+      using type = Type;
 
       static
       type _deref(const iter data) noexcept
@@ -492,28 +528,28 @@ inline namespace nimata
       }
     };
 
-    template<typename F, typename... A>
-    using _result = decltype(std::declval<F&>()(std::declval<A&>()...));
+    template<typename Callable, typename... Arguments>
+    using _result = decltype(std::declval<Callable&>()(std::declval<Arguments&>()...));
 
-    template<typename F, typename... A>
+    template<typename Callable, typename... Arguments>
     using _auto = typename std::conditional<
-      std::is_same<_result<F, A...>, void>::value,
+      std::is_same<_result<Callable, Arguments...>, void>::value,
       void,
-      std::future<_result<F, A...>>
+      std::future<_result<Callable, Arguments...>>
     >::type;
 
-    template<typename F, typename... A>
-    using _future = typename std::future<_result<F, A...>>;
+    template<typename Callable, typename... Arguments>
+    using _future = typename std::future<_result<Callable, Arguments...>>;
 
-    template<Tracking tracking, typename F, typename... A>
+    template<Tracking tracking, typename Callable, typename... Arguments>
     using _tracking = 
       typename std::conditional<tracking == Tracking::stray,
         void,
         typename std::conditional<tracking == Tracking::bound,
-          std::future<_result<F, A...>>,
-          typename std::conditional<std::is_same<_result<F, A...>, void>::value,
+          std::future<_result<Callable, Arguments...>>,
+          typename std::conditional<std::is_same<_result<Callable, Arguments...>, void>::value,
             void,
-            std::future<_result<F, A...>>
+            std::future<_result<Callable, Arguments...>>
           >::type
         >::type
       >::type;
@@ -522,59 +558,62 @@ inline namespace nimata
     using _detached = std::integral_constant<Tracking, Tracking::stray>;
     using _inferred = std::integral_constant<Tracking, Tracking::infer>;
 
-    template<typename type>
+    template<typename Type>
     struct _parfor;
 
-    template<typename R>
+    template<typename Result>
     struct _push;
   }
 //*///------------------------------------------------------------------------------------------------------------------
   class Pool
   {
   public:
-    inline // constructs pool
-    Pool(signed number_of_threads = max_threads) noexcept;
+    // constructs pool
+    inline Pool(signed number_of_threads = max_threads) noexcept;
 
-    template<Tracking tracking = Tracking::infer, typename F, typename... A>
-    inline // add work and specify if you want it detached or not
-    auto push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_tracking<tracking, F, A...>;
+    // add work and specify if you want it detached or not
+    template<Tracking tracking = Tracking::infer, typename Callable, typename... Arguments>
+    inline auto push
+    (
+      Callable&&     callable,
+      Arguments&&... arguments
+    ) noexcept -> _nimata_impl::_tracking<tracking, Callable, Arguments...>;
 
-    inline // waits for all work to be done
-    void wait() const noexcept;
+    // waits for all work to be done
+    inline void wait() const noexcept;
 
-    inline // enable workers
-    void work() noexcept;
+    // enable workers
+    inline void work() noexcept;
 
-    inline // disable workers
-    void stop() noexcept;
+    // disable workers
+    inline void stop() noexcept;
 
-    inline // parallel for-loop with index range = [0, 'size')
-    auto parfor(size_t size) noexcept -> _nimata_impl::_parfor<size_t>;
+    // parallel for-loop with index range = [0, 'size')
+    inline auto parfor(size_t size) noexcept -> _nimata_impl::_parfor<size_t>;
 
-    inline // parallel for-loop with index range = ['from', 'past')
-    auto parfor(size_t from, size_t past) noexcept -> _nimata_impl::_parfor<size_t>;
+    // parallel for-loop with index range = ['from', 'past')
+    inline auto parfor(size_t from, size_t past) noexcept -> _nimata_impl::_parfor<size_t>;
 
-    template<typename iterable, typename = _nimata_impl::_if_iterable<iterable>>
-    inline // parallel for-loop over iterable
-    auto parfor(iterable&& thing) noexcept -> _nimata_impl::_parfor<iterable>;
+    // parallel for-loop over iterable
+    template<typename Iterable, typename = _nimata_impl::_if_iterable<Iterable>>
+    inline auto parfor(Iterable&& thing) noexcept -> _nimata_impl::_parfor<Iterable>;
 
-    template<typename T, size_t N>
-    auto parfor(T (&array)[N]) noexcept -> _nimata_impl::_parfor<T*>;
+    // parallel for-loop over fixed-size array
+    template<typename Type, size_t Size>
+    auto parfor(Type (&array)[Size]) noexcept -> _nimata_impl::_parfor<Type*>;
 
-    inline // get amount of workers
-    auto size() const noexcept -> unsigned;
+    // get amount of workers
+    inline auto size() const noexcept -> unsigned;
 
-    inline // set amount of workers
-    void size(signed number_of_threads) noexcept;
+    // set amount of workers
+    inline void size(signed number_of_threads) noexcept;
 
-    inline // waits for all work to be done then join threads
-    ~Pool() noexcept;
+    // waits for all work to be done then join threads
+    inline ~Pool() noexcept;
 
   private:
-    template<typename>
-    friend struct _nimata_impl::_parfor;
-    template<typename>
-    friend struct _nimata_impl::_push;
+    template<typename> friend struct _nimata_impl::_parfor;
+    template<typename> friend struct _nimata_impl::_push;
     inline void _assign() noexcept;
     std::atomic_bool                    _alive  = {true};
     std::atomic_bool                    _active = {true};
@@ -594,26 +633,26 @@ inline namespace nimata
 //*///------------------------------------------------------------------------------------------------------------------
   namespace _nimata_impl
   {
-    template<typename T>
+    template<typename Type>
     struct _parfor final
     {
-      using iterator = typename _iter_type<T>::iter;
+      using iterator = typename _iter_type<Type>::iter;
 
-      _parfor(Pool* const pool_, const iterator& from_, const iterator& past_) noexcept :
-        _pool(pool_),
-        _from(from_),
-        _past(past_)
+      _parfor(Pool* const pool_, const iterator& from_, const iterator& past_) noexcept
+        : _pool(pool_)
+        , _from(from_)
+        , _past(past_)
       {}
 
-      template<typename F>
-      void operator=(F&& body) noexcept
+      template<typename Callable>
+      void operator=(Callable&& callable_) noexcept
       {
         {
-          std::lock_guard<std::mutex> pool_queue_lock{_pool->_queue_mtx};
+          std::lock_guard<std::mutex> pool_queue_lock(_pool->_queue_mtx);
 
-          for (iterator iter = _from; iter != _past; ++iter)
+          for (iterator iter = std::move(_from); iter != _past; ++iter)
           {
-            _pool->_queue.push([=]{ body(_iter_type<T>::_deref(iter)); });
+            _pool->_queue.push([=]{ callable_(_iter_type<Type>::_deref(iter)); });
           }
         }
 
@@ -625,126 +664,149 @@ inline namespace nimata
       const iterator _past;
     };
 
-    template<typename R>
+    template<typename Result>
     struct _infer;
 
     template<>
     struct _infer<void>
     {
-      template<typename F, typename... A>
+      template<typename Callable, typename... Arguments>
       static
-      void _impl(Pool* const pool_, F&& function_, A&&... arguments_)
+      void _impl(Pool* const pool_, Callable&& callable_, Arguments&&... arguments_)
       {
-        return pool_->push<Tracking::stray>(function_, arguments_...);
+        return pool_->push<Tracking::stray>(callable_, arguments_...);
       }
     };
 
-    template<typename R>
+    template<typename Result>
     struct _infer
     {
-      template<typename F, typename... A>
+      template<typename Callable, typename... Arguments>
       static
-      auto _impl(Pool* const pool_, F&& function_, A&&... arguments_) -> std::future<R>
+      auto _impl(Pool* const pool_, Callable&& callable_, Arguments&&... arguments_) -> std::future<Result>
       {
-        return pool_->push<Tracking::bound>(function_, arguments_...);
+        return pool_->push<Tracking::bound>(callable_, arguments_...);
       }
     };
 
     template<>
     struct _push<void>
     {
-      template<typename F, typename... A>
+      template<typename Callable, typename... Arguments>
       static
-      auto _impl(Pool* const pool_, F&& function_, A&&... arguments_) -> std::future<void>
+      auto _impl(Pool* const pool_, Callable&& callable_, Arguments&&... arguments_) -> std::future<void>
       {
         std::future<void> future;
 
-        if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(function_) == true)
+        if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(callable_) == true)
         {
           auto promise = new std::promise<void>;
 
           std::lock_guard<std::mutex>{pool_->_queue_mtx}, pool_->_queue.push(
-            [=]{ function_(arguments_...), std::unique_ptr<std::promise<void>>(promise)->set_value(); }
+            [=]{ callable_(arguments_...), std::unique_ptr<std::promise<void>>(promise)->set_value(); }
           );
 
           future = promise->get_future();
 
-          _stz_impl_DEBUG_MESSAGE("pushed an attached task.");
+          _stz_impl_DBG_LVL_2(_stz_impl_DEBUG_MESSAGE("pushed an attached task.");)
         }
-        else _stz_impl_DEBUG_MESSAGE("null task pushed.");
+        else
+        {
+          _stz_impl_DBG_LVL_2(_stz_impl_DEBUG_MESSAGE("null task pushed.");)
+        }
 
         return future;
       }
     };
 
-    template<typename R>
+    template<typename ResultType>
     struct _push
     {
-      template<typename F, typename... A>
+      template<typename Callable, typename... Arguments>
       static
-      auto _impl(Pool* const pool_, F&& function_, A&&... arguments_) -> std::future<R>
+      auto _impl(Pool* const pool_, Callable&& callable_, Arguments&&... arguments_) -> std::future<ResultType>
       {
-        std::future<R> future;
+        std::future<ResultType> future;
 
-        if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(function_) == true)
+        if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(callable_) == true)
         {
-          auto promise = new std::promise<R>;
+          auto promise = new std::promise<ResultType>;
 
           future = promise->get_future();
 
-          std::lock_guard<std::mutex>{pool_->_queue_mtx}, pool_->_queue.push(
-            [=]{ std::unique_ptr<std::promise<R>>(promise)->set_value(function_(arguments_...)); }
+          std::lock_guard<std::mutex>(pool_->_queue_mtx), pool_->_queue.push(
+            [=]{ std::unique_ptr<std::promise<ResultType>>(promise)->set_value(callable_(arguments_...)); }
           );
 
-          _stz_impl_DEBUG_MESSAGE("pushed a task with return value.");
+          _stz_impl_DBG_LVL_2(_stz_impl_DEBUG_MESSAGE("pushed a task with return value.");)
+        } 
+        else
+        {
+          _stz_impl_DBG_LVL_2(_stz_impl_DEBUG_MESSAGE("null task pushed.");)
         }
-        else _stz_impl_DEBUG_MESSAGE("null task pushed.");
 
         return future;
       }
     };
   }
 //*///------------------------------------------------------------------------------------------------------------------
-  Pool::Pool(signed N_) noexcept :
-    _size(_nimata_impl::_compute_number_of_threads(N_)),
-    _workers(new _nimata_impl::_worker[_size])
+  Pool::Pool(const signed N_) noexcept
+    : _size(_nimata_impl::_compute_number_of_threads(N_))
+    , _workers(new _nimata_impl::_worker[_size])
   {
-    _stz_impl_DEBUG_MESSAGE("%u thread%s aquired.", _size, _size == 1 ? "" : "s");
+    _stz_impl_DBG_LVL_0(_stz_impl_DEBUG_MESSAGE("%u thread%s aquired.", _size, _size == 1 ? "" : "s");)
   }
 
-  template<Tracking T, typename F, typename... A>
-  auto Pool::push(F&& function, A&&... arguments) noexcept -> _nimata_impl::_tracking<T, F, A...>
+  template<Tracking T, typename Callable, typename... Arguments>
+  auto Pool::push
+  (
+    Callable&&     callable_,
+    Arguments&&... arguments_
+  ) noexcept -> _nimata_impl::_tracking<T, Callable, Arguments...>
   {
-    return push(std::integral_constant<Tracking, T>(), function, arguments...);
+    return push(std::integral_constant<Tracking, T>(), callable_, arguments_...);
   }
   
-  template<typename F, typename... A>
-  auto Pool::push(_nimata_impl::_detached, F&& function_, A&&... arguments_) noexcept -> void
+  template<typename Callable, typename... Arguments>
+  auto Pool::push(_nimata_impl::_detached, Callable&& callable_, Arguments&&... arguments_) noexcept -> void
   {
-    if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(function_) == true)
+    if _stz_impl_EXPECTED(_nimata_impl::_validate_callable(callable_) == true)
     {
       std::lock_guard<std::mutex>{_queue_mtx}, _queue.push(
-        [=]{ function_(arguments_...); }
+        [=]{ callable_(arguments_...); }
       );
 
-      _stz_impl_DEBUG_MESSAGE("pushed a task with no return value.");
+      _stz_impl_DBG_LVL_2(_stz_impl_DEBUG_MESSAGE("pushed a task with no return value.");)
     }
-    else _stz_impl_DEBUG_MESSAGE("null task pushed.");
+    else
+    {
+      _stz_impl_DBG_LVL_2(_stz_impl_DEBUG_MESSAGE("null task pushed.");)
+    }
 
     return;
   }
 
-  template<typename F, typename... A>
+  template<typename Callable, typename... Arguments>
   _stz_impl_NODISCARD_REASON("stz: push: wrap in a lambda if you don't use the return value.")
-  auto Pool::push(_nimata_impl::_attached, F&& function_, A&&... arguments_) noexcept -> _nimata_impl::_future<F, A...>
+  auto Pool::push
+  (
+    _nimata_impl::_attached,
+    Callable&&     callable_,
+    Arguments&&... arguments_
+  ) noexcept -> _nimata_impl::_future<Callable, Arguments...>
   {
-    return _nimata_impl::_push<_nimata_impl::_result<F, A...>>::_impl(this, function_, arguments_...);
+    return _nimata_impl::_push<_nimata_impl::_result<Callable, Arguments...>>::_impl(this, callable_, arguments_...);
   }
 
-  template<typename F, typename... A>
-  auto Pool::push(_nimata_impl::_inferred, F&& function, A&&... arguments) noexcept -> _nimata_impl::_auto<F, A...>
+  template<typename Callable, typename... Arguments>
+  auto Pool::push
+  (
+    _nimata_impl::_inferred,
+    Callable&&     callable_,
+    Arguments&&... arguments
+  ) noexcept -> _nimata_impl::_auto<Callable, Arguments...>
   {
-    return _nimata_impl::_infer<_nimata_impl::_result<F, A...>>::_impl(this, function, arguments...);
+    return _nimata_impl::_infer<_nimata_impl::_result<Callable, Arguments...>>::_impl(this, callable_, arguments...);
   }
 
   void Pool::wait() const noexcept
@@ -764,7 +826,7 @@ inline namespace nimata
         }
       }
 
-      _stz_impl_DEBUG_MESSAGE("all threads finished their work.");
+      _stz_impl_DBG_LVL_1(_stz_impl_DEBUG_MESSAGE("all threads finished their work.");)
     }
   }
 
@@ -809,10 +871,10 @@ inline namespace nimata
     return _nimata_impl::_parfor<iterable>(this, _nimata_impl::_begin(thing_), _nimata_impl::_end(thing_));
   }
 
-  template<typename T, size_t N>
-  auto Pool::parfor(T (&array_)[N]) noexcept -> _nimata_impl::_parfor<T*>
+  template<typename Type, size_t Size>
+  auto Pool::parfor(Type (&array_)[Size]) noexcept -> _nimata_impl::_parfor<Type*>
   {
-    return _nimata_impl::_parfor<T*>(this, array_, array_ + N);
+    return _nimata_impl::_parfor<Type*>(this, array_, array_ + Size);
   }
 
 # define parfor(PARFOR_VARIABLE_DECLARATION, ...) parfor(__VA_ARGS__) = [&](PARFOR_VARIABLE_DECLARATION) -> void
@@ -826,25 +888,32 @@ inline namespace nimata
 
     delete[] _workers;
 
-    _stz_impl_DEBUG_MESSAGE("all workers killed.");
+    _stz_impl_DBG_LVL_0(_stz_impl_DEBUG_MESSAGE("all workers killed.");)
   }
 
   void Pool::_assign() noexcept
   {
     while _stz_impl_EXPECTED(_alive)
     {
-      if _stz_impl_ABNORMAL(_active == false) continue;
+      if _stz_impl_ABNORMAL(_active == false)
+      {
+        continue;
+      }
 
       for (unsigned k = 0; k < _size; ++k)
       {
-        if (_workers[k]._busy()) continue;
+        if (_workers[k]._busy())
+        {
+          continue;
+        }
 
         std::lock_guard<std::mutex> lock{_queue_mtx};
         if (_queue.empty() == false)
         {
           _workers[k]._task(std::move(_queue.front()));
           _queue.pop();
-          _stz_impl_DEBUG_MESSAGE("assigned to worker thread #%02u.", k);
+
+          _stz_impl_DBG_LVL_2(_stz_impl_DEBUG_MESSAGE("assigned to worker thread #%02u.", k);)
         }
       }
     }
@@ -853,10 +922,18 @@ inline namespace nimata
 # undef cyclic_async
   void cyclic_async();
 
-# define _stz_impl_cyclic_async_IMPL(LINE, DURATION) \
-    _nimata_impl::_cyclic_async<stz::_nimata_impl::_to_ns(DURATION)> _stz_impl_cyclic_async##LINE = [&]() -> void
-# define _stz_impl_cyclic_async_PRXY(LINE, DURATION) _stz_impl_cyclic_async_IMPL(LINE,     DURATION)
-# define cyclic_async(DURATION)                      _stz_impl_cyclic_async_PRXY(__LINE__, DURATION)
+# define _stz_impl_cyclic_async_IMPL(LINE, PERIOD) \
+    _nimata_impl::_cyclic_async<stz::_nimata_impl::_to_ns(PERIOD)> _stz_impl_cyclic_async##LINE = [&]() -> void
+# define _stz_impl_cyclic_async_PRXY(LINE, PERIOD) _stz_impl_cyclic_async_IMPL(LINE,     PERIOD)
+# define cyclic_async(PERIOD)                      _stz_impl_cyclic_async_PRXY(__LINE__, PERIOD)
+//*///------------------------------------------------------------------------------------------------------------------
+# define _stz_impl_IO(NAME, LINK) std::ostream& io::NAME() { static std::ostream NAME(LINK.rdbuf());  return NAME; }
+  _stz_impl_IO(out, std::cout)
+  _stz_impl_IO(dbg, std::clog)
+  _stz_impl_IO(wrn, std::cerr)
+  _stz_impl_IO(err, std::cerr)
+# undef _stz_impl_IO
+//*///------------------------------------------------------------------------------------------------------------------
 }
 //*///------------------------------------------------------------------------------------------------------------------
   inline namespace _literals
@@ -913,6 +990,10 @@ inline namespace nimata
 # undef _stz_impl_ABNORMAL
 # undef _stz_impl_NODISCARD
 # undef _stz_impl_NODISCARD_REASON
+# undef _stz_impl_DBG_LVL_3
+# undef _stz_impl_DBG_LVL_2
+# undef _stz_impl_DBG_LVL_1
+# undef _stz_impl_DBG_LVL_0
 # undef _stz_impl_DEBUG_MESSAGE
 //*///------------------------------------------------------------------------------------------------------------------
 #else

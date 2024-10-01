@@ -1,10 +1,11 @@
 #include <iostream>
 #include <atomic>
 
+#include <iosfwd>
 // #define NIMATA_DEBUGGING
 #include "../include/Paleta.hpp"
-#include "../include/Nimata.hpp"
 #include "../include/Chronometro.hpp"
+#include "../include/Nimata.hpp"
 
 static std::atomic_uint work_count;
 
@@ -13,7 +14,7 @@ void work_2(int) {        ++work_count; }
 int  work_3()    { return ++work_count; }
 int  work_4(int) { return ++work_count; }
 
-void threadpool_demo()
+void pool_demo()
 {
   std::cout << stz::clear;
 
@@ -56,8 +57,6 @@ void threadpool_demo()
 
 void cyclic_async_demo()
 {
-  using namespace stz::_literals;
-
   stz::cyclic_async(std::chrono::seconds(1)) // clear screen every second
   {
     static unsigned frame = 0;
@@ -76,6 +75,7 @@ void cyclic_async_demo()
 
   stz::sleep(1);
   
+  using namespace stz::_literals;
   stz::cyclic_async(25_Hz)
   {
     std::cout << '-'; // add 25 '-' to progress bar every second
@@ -180,7 +180,7 @@ int main()
 {
   while (true)
   {
-    threadpool_demo();
+    pool_demo();
     
     cyclic_async_demo();
 
