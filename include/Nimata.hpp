@@ -255,7 +255,8 @@ inline namespace nimata
         _stz_impl_DEBUG_MESSAGE("thread spawned.");
       }
 
-      _cyclic_async(const _cyclic_async&) noexcept {}
+      _cyclic_async(const _cyclic_async&) noexcept
+      {}
 
       ~_cyclic_async() noexcept
       {
@@ -279,7 +280,7 @@ inline namespace nimata
         std::chrono::steady_clock
       >::type;
 
-      clock::time_point last = {},  time;
+      clock::time_point last = clock::time_point(), time;
       std::chrono::nanoseconds::rep span;
 
       while (_alive)
@@ -316,7 +317,7 @@ inline namespace nimata
       auto _impl(int) -> decltype
       (
         void(static_cast<bool>(std::declval<T_&>())),
-        std::true_type{}
+        std::true_type()
       );
 
       template<typename T_>
@@ -324,7 +325,7 @@ inline namespace nimata
       auto _impl(...) -> std::false_type;
 
     public:
-      static constexpr bool value = decltype(_impl<T>(0)){};
+      static constexpr bool value = decltype(_impl<T>(0))();
     };
 
     template<typename T, typename R = bool>
@@ -362,7 +363,7 @@ inline namespace nimata
         void(  std::declval<T_&>().begin() != std::declval<T_&>().end()),
         void(++std::declval<T_&>().begin()),
         void( *std::declval<T_&>().begin()),
-        std::true_type{}
+        std::true_type()
       );
 
       template<typename T_>
@@ -370,7 +371,7 @@ inline namespace nimata
       auto _impl(...) -> std::false_type;
 
     public:
-      static constexpr bool value = decltype(_impl<T>(0)){};
+      static constexpr bool value = decltype(_impl<T>(0))();
     };
 
     template<typename T>
@@ -384,7 +385,7 @@ inline namespace nimata
         void(  begin(std::declval<T_&>()) != end(std::declval<T_&>())),
         void(++begin(std::declval<T_&>())),
         void( *begin(std::declval<T_&>())),
-        std::true_type{}
+        std::true_type()
       );
 
       template<typename T_>
@@ -392,7 +393,7 @@ inline namespace nimata
       auto _impl(...) -> std::false_type;
 
     public:
-      static constexpr bool value = decltype(_impl<T>(0)){};
+      static constexpr bool value = decltype(_impl<T>(0))();
     };
 
     template<typename T>
@@ -409,7 +410,7 @@ inline namespace nimata
     using _if_iterable = typename std::enable_if<_is_iterable<type>::value>::type;
 
     template<typename T>
-    auto _begin(T&& iterable_) noexcept -> typename std::enable_if<
+    auto _begin(T&& iterable_) noexcept-> typename std::enable_if<
       _has_iter_meths<T>::value and not _has_iter_funcs<T>::value,
       decltype(std::declval<T&>().begin())
     >::type
